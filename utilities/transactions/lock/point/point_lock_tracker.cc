@@ -21,7 +21,7 @@ class TrackedKeysColumnFamilyIterator
   ColumnFamilyId Next() override { return (it_++)->first; }
 
  private:
-  const TrackedKeys& tracked_keys_;
+  const TrackedKeys& tracked_keys_;  // std::unordered_map<ColumnFamilyId, TrackedKeyInfos>
   TrackedKeys::const_iterator it_;
 };
 
@@ -35,19 +35,19 @@ class TrackedKeysIterator : public LockTracker::KeyIterator {
   const std::string& Next() override { return (it_++)->first; }
 
  private:
-  const TrackedKeyInfos& key_infos_;
+  const TrackedKeyInfos& key_infos_;  // std::unordered_map<std::string, TrackedKeyInfo>
   TrackedKeyInfos::const_iterator it_;
 };
 
 }  // namespace
 
-void PointLockTracker::Track(const PointLockRequest& r) {
+void PointLockTracker::Track(const PointLockRequest& r) {  // 记录key的seq
   auto& keys = tracked_keys_[r.column_family_id];
   auto result = keys.try_emplace(r.key, r.seq);
   auto it = result.first;
   if (!result.second && r.seq < it->second.seq) {
     // Now tracking this key with an earlier sequence number
-    it->second.seq = r.seq;
+    it->second.seq = r.seq;  // 如果已经存在，更新为更小的seq
   }
   // else we do not update the seq. The smaller the tracked seq, the stronger it
   // the guarantee since it implies from the seq onward there has not been a
@@ -127,14 +127,14 @@ void PointLockTracker::Merge(const LockTracker& tracker) {
         if (current_info == current_keys.end()) {
           current_keys.emplace(key_info);
         } else {
-          current_info->second.Merge(info);
+          current_info->second.Merge(info);  // 合并seq大的read write
         }
       }
     }
   }
 }
 
-void PointLockTracker::Subtract(const LockTracker& tracker) {
+void PointLockTracker::Subtract(const LockTracker& tracker) {  // 减去
   const PointLockTracker& t = static_cast<const PointLockTracker&>(tracker);
   for (const auto& cf_keys : t.tracked_keys_) {
     ColumnFamilyId cf = cf_keys.first;
@@ -176,7 +176,7 @@ LockTracker* PointLockTracker::GetTrackedLocksSinceSavePoint(
   LockTracker* t = new PointLockTracker();
   const PointLockTracker& save_point_t =
       static_cast<const PointLockTracker&>(save_point_tracker);
-  for (const auto& cf_keys : save_point_t.tracked_keys_) {
+  for (const auto& cf_keys : save_point_t.tracked_keys_) {  // 传入的save_point_tracker
     ColumnFamilyId cf = cf_keys.first;
     const auto& keys = cf_keys.second;
 
@@ -189,11 +189,11 @@ LockTracker* PointLockTracker::GetTrackedLocksSinceSavePoint(
 
       auto current_key_info = current_keys.find(key);
       assert(current_key_info != current_keys.end());
-      assert(current_key_info->second.num_reads >= num_reads);
+      assert(current_key_info->second.num_reads >= num_reads);  // cur比传入的要新
       assert(current_key_info->second.num_writes >= num_writes);
 
       if (current_key_info->second.num_reads == num_reads &&
-          current_key_info->second.num_writes == num_writes) {
+          current_key_info->second.num_writes == num_writes) {  // 传入的savepoint和当前savepoint相同
         // All the reads/writes to this key were done in the last savepoint.
         PointLockRequest r;
         r.column_family_id = cf;
@@ -201,7 +201,7 @@ LockTracker* PointLockTracker::GetTrackedLocksSinceSavePoint(
         r.seq = info.seq;
         r.read_only = (num_writes == 0);
         r.exclusive = info.exclusive;
-        t->Track(r);
+        t->Track(r);  // read write num从0开始，track会加一
       }
     }
   }

@@ -54,11 +54,11 @@ class PessimisticTransaction : public TransactionBaseImpl {
   // It is basically Commit without going through Prepare phase. The write batch
   // is also directly provided instead of expecting txn to gradually batch the
   // transactions writes to an internal write batch.
-  Status CommitBatch(WriteBatch* batch);
+  Status CommitBatch(WriteBatch* batch);  // 
 
-  Status Rollback() override;
+  Status Rollback() override;  // 2pc的Rollback?
 
-  Status RollbackToSavePoint() override;
+  Status RollbackToSavePoint() override; // im
 
   Status SetName(const TransactionName& name) override;
 

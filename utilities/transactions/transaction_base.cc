@@ -121,7 +121,7 @@ void TransactionBaseImpl::Reinitialize(DB* db,
 }
 
 void TransactionBaseImpl::SetSnapshot() {
-  const Snapshot* snapshot = dbimpl_->GetSnapshotForWriteConflictBoundary();
+  const Snapshot* snapshot = dbimpl_->GetSnapshotForWriteConflictBoundary();  // 
   SetSnapshotInternal(snapshot);
 }
 
@@ -145,7 +145,7 @@ void TransactionBaseImpl::SetSnapshotIfNeeded() {
     std::shared_ptr<TransactionNotifier> notifier = snapshot_notifier_;
     SetSnapshot();
     if (notifier != nullptr) {
-      notifier->SnapshotCreated(GetSnapshot());
+      notifier->SnapshotCreated(GetSnapshot());  // ?
     }
   }
 }
@@ -182,7 +182,7 @@ void TransactionBaseImpl::SetSavePoint() {
   write_batch_.SetSavePoint();
 }
 
-Status TransactionBaseImpl::RollbackToSavePoint() {
+Status TransactionBaseImpl::RollbackToSavePoint() {  // 
   if (save_points_ != nullptr && save_points_->size() > 0) {
     // Restore saved SavePoint
     TransactionBaseImpl::SavePoint& save_point = save_points_->top();
@@ -199,7 +199,7 @@ Status TransactionBaseImpl::RollbackToSavePoint() {
     assert(s.ok());
 
     // Rollback any keys that were tracked since the last savepoint
-    tracked_locks_->Subtract(*save_point.new_locks_);
+    tracked_locks_->Subtract(*save_point.new_locks_);  // 减去 savepoint
 
     save_points_->pop();
 
@@ -343,7 +343,7 @@ Status TransactionBaseImpl::GetForUpdate(const ReadOptions& read_options,
         "`Env::IOActivity::kUnknown`");
   }
   Status s =
-      TryLock(column_family, key, true /* read_only */, exclusive, do_validate);
+      TryLock(column_family, key, true /* read_only */, exclusive, do_validate);  // 本来snapshot读不需加锁，GetForUpdate需要加锁做读写同步
 
   if (s.ok() && pinnable_val != nullptr) {
     s = GetImpl(read_options, column_family, key, pinnable_val);
@@ -514,7 +514,7 @@ Status TransactionBaseImpl::PutEntityImpl(ColumnFamilyHandle* column_family,
 
 Status TransactionBaseImpl::Put(ColumnFamilyHandle* column_family,
                                 const Slice& key, const Slice& value,
-                                const bool assume_tracked) {
+                                const bool assume_tracked) {  // put写入
   const bool do_validate = !assume_tracked;
   Status s = TryLock(column_family, key, false /* read_only */,
                      true /* exclusive */, do_validate, assume_tracked);
@@ -753,7 +753,7 @@ uint64_t TransactionBaseImpl::GetNumKeys() const {
 
 void TransactionBaseImpl::TrackKey(uint32_t cfh_id, const std::string& key,
                                    SequenceNumber seq, bool read_only,
-                                   bool exclusive) {
+                                   bool exclusive) {  // lock trace
   PointLockRequest r;
   r.column_family_id = cfh_id;
   r.key = key;
@@ -762,9 +762,9 @@ void TransactionBaseImpl::TrackKey(uint32_t cfh_id, const std::string& key,
   r.exclusive = exclusive;
 
   // Update map of all tracked keys for this transaction
-  tracked_locks_->Track(r);
+  tracked_locks_->Track(r);  // 当前事务的trace
 
-  if (save_points_ != nullptr && !save_points_->empty()) {
+  if (save_points_ != nullptr && !save_points_->empty()) {  // 当前savepoint的trace
     // Update map of tracked keys in this SavePoint
     save_points_->top().new_locks_->Track(r);
   }
@@ -775,7 +775,7 @@ void TransactionBaseImpl::TrackKey(uint32_t cfh_id, const std::string& key,
 //
 // Returns either a WriteBatch or WriteBatchWithIndex depending on whether
 // DisableIndexing() has been called.
-WriteBatchBase* TransactionBaseImpl::GetBatchForWrite() {
+WriteBatchBase* TransactionBaseImpl::GetBatchForWrite() {  // index
   if (indexing_enabled_) {
     // Use WriteBatchWithIndex
     return &write_batch_;

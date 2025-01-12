@@ -40,7 +40,7 @@ struct FlushJobInfo;
 //
 // This class is not thread-safe.  External synchronization is required
 // (such as holding the db mutex or being on the write thread).
-class MemTableListVersion {
+class MemTableListVersion {   // keeps a list of immutable memtables
  public:
   explicit MemTableListVersion(size_t* parent_memtable_list_memory_usage,
                                const MemTableListVersion& old);
@@ -190,7 +190,7 @@ class MemTableListVersion {
   bool MemtableLimitExceeded(size_t usage);
 
   // Immutable MemTables that have not yet been flushed.
-  std::list<MemTable*> memlist_;
+  std::list<MemTable*> memlist_;  // 应该是一个CF的?
 
   // MemTables that have already been flushed
   // (used during Transaction validation)
@@ -218,7 +218,7 @@ class MemTableListVersion {
 // Other than imm_flush_needed and imm_trim_needed, this class is not
 // thread-safe and requires external synchronization (such as holding the db
 // mutex or being on the write thread.)
-class MemTableList {
+class MemTableList {  // all the immutable memtables
  public:
   // A list of memtables.
   explicit MemTableList(int min_write_buffer_number_to_merge,
@@ -469,7 +469,7 @@ class MemTableList {
       LogBuffer* log_buffer);
 
   // DB mutex held
-  void InstallNewVersion();
+  void InstallNewVersion();   // 
 
   // DB mutex held
   // Called after writing to MANIFEST

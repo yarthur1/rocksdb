@@ -32,7 +32,7 @@ class Mutex;
 class VersionSet;
 
 void MemTableListVersion::AddMemTable(MemTable* m) {
-  memlist_.push_front(m);
+  memlist_.push_front(m);  // 还没有flush
   *parent_memtable_list_memory_usage_ += m->ApproximateMemoryUsage();
 }
 
@@ -105,7 +105,7 @@ int MemTableList::NumFlushed() const {
 // Return the most recent value found, if any.
 // Operands stores the list of merge operations to apply, so far.
 bool MemTableListVersion::Get(const LookupKey& key, std::string* value,
-                              PinnableWideColumns* columns,
+                              PinnableWideColumns* columns,   // ?
                               std::string* timestamp, Status* s,
                               MergeContext* merge_context,
                               SequenceNumber* max_covering_tombstone_seq,
@@ -128,7 +128,7 @@ void MemTableListVersion::MultiGet(const ReadOptions& read_options,
   }
 }
 
-bool MemTableListVersion::GetMergeOperands(
+bool MemTableListVersion::GetMergeOperands(  // 合并的操作对象
     const LookupKey& key, Status* s, MergeContext* merge_context,
     SequenceNumber* max_covering_tombstone_seq, const ReadOptions& read_opts) {
   for (MemTable* memtable : memlist_) {
@@ -143,7 +143,7 @@ bool MemTableListVersion::GetMergeOperands(
   return false;
 }
 
-bool MemTableListVersion::GetFromHistory(
+bool MemTableListVersion::GetFromHistory(  // 已经flush 的sst
     const LookupKey& key, std::string* value, PinnableWideColumns* columns,
     std::string* timestamp, Status* s, MergeContext* merge_context,
     SequenceNumber* max_covering_tombstone_seq, SequenceNumber* seq,
@@ -161,7 +161,7 @@ bool MemTableListVersion::GetFromList(
     bool* is_blob_index) {
   *seq = kMaxSequenceNumber;
 
-  for (auto& memtable : *list) {
+  for (auto& memtable : *list) {  // 从传入的list中查找
     assert(memtable->IsFragmentedRangeTombstonesConstructed());
     SequenceNumber current_seq = kMaxSequenceNumber;
 
@@ -192,7 +192,7 @@ bool MemTableListVersion::GetFromList(
   return false;
 }
 
-Status MemTableListVersion::AddRangeTombstoneIterators(
+Status MemTableListVersion::AddRangeTombstoneIterators(  // 墓碑迭代器?
     const ReadOptions& read_opts, Arena* /*arena*/,
     RangeDelAggregator* range_del_agg) {
   assert(range_del_agg != nullptr);
@@ -222,9 +222,9 @@ void MemTableListVersion::AddIterators(
   }
 }
 
-void MemTableListVersion::AddIterators(
+void MemTableListVersion::AddIterators(  //???
     const ReadOptions& options,
-    UnownedPtr<const SeqnoToTimeMapping> seqno_to_time_mapping,
+    UnownedPtr<const SeqnoToTimeMapping> seqno_to_time_mapping,  // UnownedPtr
     const SliceTransform* prefix_extractor,
     MergeIteratorBuilder* merge_iter_builder, bool add_range_tombstone_iter) {
   for (auto& m : memlist_) {
@@ -285,7 +285,7 @@ uint64_t MemTableListVersion::GetTotalNumDeletes() const {
 
 SequenceNumber MemTableListVersion::GetEarliestSequenceNumber(
     bool include_history) const {
-  if (include_history && !memlist_history_.empty()) {
+  if (include_history && !memlist_history_.empty()) {  // back是oldest
     return memlist_history_.back()->GetEarliestSequenceNumber();
   } else if (!memlist_.empty()) {
     return memlist_.back()->GetEarliestSequenceNumber();
@@ -338,7 +338,7 @@ size_t MemTableListVersion::MemoryAllocatedBytesExcludingLast() const {
   for (auto& memtable : memlist_history_) {
     total_memtable_size += memtable->MemoryAllocatedBytes();
   }
-  if (!memlist_history_.empty()) {
+  if (!memlist_history_.empty()) {   // 末尾是oldest
     total_memtable_size -= memlist_history_.back()->MemoryAllocatedBytes();
   }
   return total_memtable_size;
@@ -365,7 +365,7 @@ bool MemTableListVersion::TrimHistory(autovector<MemTable*>* to_delete,
   bool ret = false;
   while (MemtableLimitExceeded(usage) && !memlist_history_.empty()) {
     MemTable* x = memlist_history_.back();
-    memlist_history_.pop_back();
+    memlist_history_.pop_back();  // 删除oldest
 
     UnrefMemTable(to_delete, x);
     ret = true;
@@ -407,7 +407,7 @@ void MemTableList::PickMemtablesToFlush(uint64_t max_memtable_id,
   // ret is filled with memtables already sorted in increasing MemTable ID.
   // However, when the mempurge feature is activated, new memtables with older
   // IDs will be added to the memlist.
-  for (auto it = memlist.rbegin(); it != memlist.rend(); ++it) {
+  for (auto it = memlist.rbegin(); it != memlist.rend(); ++it) {   // 从oldest开始
     MemTable* m = *it;
     if (!atomic_flush && m->atomic_flush_seqno_ != kMaxSequenceNumber) {
       atomic_flush = true;
@@ -418,7 +418,7 @@ void MemTableList::PickMemtablesToFlush(uint64_t max_memtable_id,
     if (!m->flush_in_progress_) {
       assert(!m->flush_completed_);
       num_flush_not_started_--;
-      if (num_flush_not_started_ == 0) {
+      if (num_flush_not_started_ == 0) {  // 都开始了
         imm_flush_needed.store(false, std::memory_order_release);
       }
       m->flush_in_progress_ = true;  // flushing will start very soon
@@ -644,7 +644,7 @@ Status MemTableList::TryInstallMemtableFlushResults(
 // New memtables are inserted at the front of the list.
 void MemTableList::Add(MemTable* m, autovector<MemTable*>* to_delete) {
   assert(static_cast<int>(current_->memlist_.size()) >= num_flush_not_started_);
-  InstallNewVersion();
+  InstallNewVersion();  //MemTableListVersion是否需要更新
   // this method is used to move mutable memtable into an immutable list.
   // since mutable memtable is already refcounted by the DBImpl,
   // and when moving to the immutable list we don't unref it,
@@ -819,7 +819,7 @@ uint64_t MemTableList::PrecomputeMinLogContainingPrepSection(
   return min_log;
 }
 
-// Commit a successful atomic flush in the manifest file.
+// Commit a successful atomic flush in the manifest file. 
 Status InstallMemtableAtomicFlushResults(
     const autovector<MemTableList*>* imm_lists,
     const autovector<ColumnFamilyData*>& cfds,
@@ -858,7 +858,7 @@ Status InstallMemtableAtomicFlushResults(
     assert(nullptr != file_metas[k]);
     for (size_t i = 0; i != mems_list[k]->size(); ++i) {
       assert(i == 0 || (*mems_list[k])[i]->GetEdits()->NumEntries() == 0);
-      (*mems_list[k])[i]->SetFlushCompleted(true);
+      (*mems_list[k])[i]->SetFlushCompleted(true);    // 标记flush结束?
       (*mems_list[k])[i]->SetFileNumber(file_metas[k]->fd.GetNumber());
     }
     if (committed_flush_jobs_info[k]) {

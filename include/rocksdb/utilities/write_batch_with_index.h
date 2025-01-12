@@ -265,7 +265,7 @@ class WriteBatchWithIndex : public WriteBatchBase {
 
   // An overload of the above method that receives a PinnableSlice
   Status GetFromBatchAndDB(DB* db, const ReadOptions& read_options,
-                           ColumnFamilyHandle* column_family, const Slice& key,
+                           ColumnFamilyHandle* column_family, const Slice& key,   // 读取key
                            PinnableSlice* value);
 
   // Similar to DB::GetEntity() but also reads writes from this batch.

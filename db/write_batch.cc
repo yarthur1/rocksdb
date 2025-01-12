@@ -7,7 +7,7 @@
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file. See the AUTHORS file for names of contributors.
 //
-// WriteBatch::rep_ :=
+// WriteBatch::rep_ :=   格式
 //    sequence: fixed64
 //    count: fixed32
 //    data: record[count]
@@ -94,7 +94,7 @@ enum ContentFlags : uint32_t {
   HAS_TIMED_PUT = 1 << 13,
 };
 
-struct BatchContentClassifier : public WriteBatch::Handler {
+struct BatchContentClassifier : public WriteBatch::Handler {   // 设置flag
   uint32_t content_flags = 0;
 
   Status PutCF(uint32_t, const Slice&, const Slice&) override {
@@ -183,7 +183,7 @@ WriteBatch::WriteBatch(size_t reserved_bytes, size_t max_bytes,
   // entry.
   assert(protection_bytes_per_key == 0 || protection_bytes_per_key == 8);
   if (protection_bytes_per_key != 0) {
-    prot_info_.reset(new WriteBatch::ProtectionInfo());
+    prot_info_.reset(new WriteBatch::ProtectionInfo());  // key的protectinfo?
   }
   rep_.reserve((reserved_bytes > WriteBatchInternal::kHeader)
                    ? reserved_bytes
@@ -207,7 +207,7 @@ WriteBatch::WriteBatch(const WriteBatch& src)
       rep_(src.rep_) {
   if (src.save_points_ != nullptr) {
     save_points_.reset(new SavePoints());
-    save_points_->stack = src.save_points_->stack;
+    save_points_->stack = src.save_points_->stack;  // 用stack保存
   }
   if (src.prot_info_ != nullptr) {
     prot_info_.reset(new WriteBatch::ProtectionInfo());
@@ -226,8 +226,8 @@ WriteBatch::WriteBatch(WriteBatch&& src) noexcept
 
 WriteBatch& WriteBatch::operator=(const WriteBatch& src) {
   if (&src != this) {
-    this->~WriteBatch();
-    new (this) WriteBatch(src);
+    this->~WriteBatch();  // 先释放原来的
+    new (this) WriteBatch(src);  // 避免再分配内存
   }
   return *this;
 }
@@ -277,7 +277,7 @@ uint32_t WriteBatch::ComputeContentFlags() const {
   if ((rv & ContentFlags::DEFERRED) != 0) {
     BatchContentClassifier classifier;
     // Should we handle status here?
-    Iterate(&classifier).PermitUncheckedError();
+    Iterate(&classifier).PermitUncheckedError();  // 读出flag
     rv = classifier.content_flags;
 
     // this method is conceptually const, because it is performing a lazy
@@ -374,15 +374,15 @@ Status ReadRecordFromWriteBatch(Slice* input, char* tag,
                                 Slice* value, Slice* blob, Slice* xid,
                                 uint64_t* write_unix_time) {
   assert(key != nullptr && value != nullptr);
-  *tag = (*input)[0];
+  *tag = (*input)[0];  //第一个字节为tag
   input->remove_prefix(1);
   *column_family = 0;  // default
   switch (*tag) {
     case kTypeColumnFamilyValue:
-      if (!GetVarint32(input, column_family)) {
+      if (!GetVarint32(input, column_family)) {  // input指针数据读后会移动
         return Status::Corruption("bad WriteBatch Put");
       }
-      FALLTHROUGH_INTENDED;
+      FALLTHROUGH_INTENDED;  // 后面的case不会判断，直接执行
     case kTypeValue:
       if (!GetLengthPrefixedSlice(input, key) ||
           !GetLengthPrefixedSlice(input, value)) {
@@ -507,7 +507,7 @@ Status ReadRecordFromWriteBatch(Slice* input, char* tag,
   return Status::OK();
 }
 
-Status WriteBatch::Iterate(Handler* handler) const {
+Status WriteBatch::Iterate(Handler* handler) const {  /// 主要是handler调用自身函数
   if (rep_.size() < WriteBatchInternal::kHeader) {
     return Status::Corruption("malformed WriteBatch (too small)");
   }
@@ -553,7 +553,7 @@ Status WriteBatchInternal::Iterate(const WriteBatch* wb,
       column_family = 0;  // default
 
       s = ReadRecordFromWriteBatch(&input, &tag, &column_family, &key, &value,
-                                   &blob, &xid, &write_unix_time);
+                                   &blob, &xid, &write_unix_time);  /// 解析resp_, input指针会移动
       if (!s.ok()) {
         return s;
       }
@@ -574,7 +574,7 @@ Status WriteBatchInternal::Iterate(const WriteBatch* wb,
       case kTypeValue:
         assert(wb->content_flags_.load(std::memory_order_relaxed) &
                (ContentFlags::DEFERRED | ContentFlags::HAS_PUT));
-        s = handler->PutCF(column_family, key, value);
+        s = handler->PutCF(column_family, key, value);  // 写数据到handler
         if (LIKELY(s.ok())) {
           empty_batch = false;
           found++;
@@ -854,9 +854,9 @@ Status WriteBatchInternal::Put(WriteBatch* b, uint32_t column_family_id,
     PutVarint32(&b->rep_, column_family_id);
   }
   PutLengthPrefixedSlice(&b->rep_, key);
-  PutLengthPrefixedSlice(&b->rep_, value);
+  PutLengthPrefixedSlice(&b->rep_, value);  // 写入cf key val
   b->content_flags_.store(
-      b->content_flags_.load(std::memory_order_relaxed) | ContentFlags::HAS_PUT,
+      b->content_flags_.load(std::memory_order_relaxed) | ContentFlags::HAS_PUT,  // 插入数据
       std::memory_order_relaxed);
   if (b->prot_info_ != nullptr) {
     // Technically the optype could've been `kTypeColumnFamilyValue` with the
@@ -869,12 +869,12 @@ Status WriteBatchInternal::Put(WriteBatch* b, uint32_t column_family_id,
                                              .ProtectKVO(key, value, kTypeValue)
                                              .ProtectC(column_family_id));
   }
-  return save.commit();
+  return save.commit();  // 数据还是在rep_中，只是检测会不会超阈值
 }
 
 Status WriteBatchInternal::TimedPut(WriteBatch* b, uint32_t column_family_id,
                                     const Slice& key, const Slice& value,
-                                    uint64_t write_unix_time) {
+                                    uint64_t write_unix_time) {  // 过期的时间戳吗
   if (key.size() > size_t{std::numeric_limits<uint32_t>::max()}) {
     return Status::InvalidArgument("key is too large");
   }
@@ -966,7 +966,7 @@ Status WriteBatch::TimedPut(ColumnFamilyHandle* column_family, const Slice& key,
 
 Status WriteBatch::Put(ColumnFamilyHandle* column_family, const Slice& key,
                        const Slice& ts, const Slice& value) {
-  Status s = CheckColumnFamilyTimestampSize(column_family, ts);
+  Status s = CheckColumnFamilyTimestampSize(column_family, ts);  // ts是时间戳
   if (!s.ok()) {
     return s;
   }
@@ -1003,7 +1003,7 @@ Status WriteBatchInternal::CheckSlicePartsLength(const SliceParts& key,
 }
 
 Status WriteBatchInternal::Put(WriteBatch* b, uint32_t column_family_id,
-                               const SliceParts& key, const SliceParts& value) {
+                               const SliceParts& key, const SliceParts& value) {  //
   Status s = CheckSlicePartsLength(key, value);
   if (!s.ok()) {
     return s;
@@ -1157,8 +1157,8 @@ Status WriteBatchInternal::InsertNoop(WriteBatch* b) {
 }
 
 Status WriteBatchInternal::MarkEndPrepare(WriteBatch* b, const Slice& xid,
-                                          bool write_after_commit,
-                                          bool unprepared_batch) {
+                                          bool write_after_commit,  // true
+                                          bool unprepared_batch) {   // false
   // a manually constructed batch can only contain one prepare section
   assert(b->rep_[12] == static_cast<char>(kTypeNoop));
 
@@ -1171,11 +1171,11 @@ Status WriteBatchInternal::MarkEndPrepare(WriteBatch* b, const Slice& xid,
 
   // rewrite noop as begin marker
   b->rep_[12] = static_cast<char>(
-      write_after_commit ? kTypeBeginPrepareXID
-                         : (unprepared_batch ? kTypeBeginUnprepareXID
-                                             : kTypeBeginPersistedPrepareXID));
-  b->rep_.push_back(static_cast<char>(kTypeEndPrepareXID));
-  PutLengthPrefixedSlice(&b->rep_, xid);
+      write_after_commit ? kTypeBeginPrepareXID  // commit
+                         : (unprepared_batch ? kTypeBeginUnprepareXID  // unprepare
+                                             : kTypeBeginPersistedPrepareXID));  // prepare
+  b->rep_.push_back(static_cast<char>(kTypeEndPrepareXID));  // 标记end
+  PutLengthPrefixedSlice(&b->rep_, xid);  // 写事务id
   b->content_flags_.store(b->content_flags_.load(std::memory_order_relaxed) |
                               ContentFlags::HAS_END_PREPARE |
                               ContentFlags::HAS_BEGIN_PREPARE,
@@ -1189,7 +1189,7 @@ Status WriteBatchInternal::MarkEndPrepare(WriteBatch* b, const Slice& xid,
 }
 
 Status WriteBatchInternal::MarkCommit(WriteBatch* b, const Slice& xid) {
-  b->rep_.push_back(static_cast<char>(kTypeCommitXID));
+  b->rep_.push_back(static_cast<char>(kTypeCommitXID));  // 数字转换成ascii字符
   PutLengthPrefixedSlice(&b->rep_, xid);
   b->content_flags_.store(b->content_flags_.load(std::memory_order_relaxed) |
                               ContentFlags::HAS_COMMIT,
@@ -1781,7 +1781,7 @@ Status WriteBatch::PutLogData(const Slice& blob) {
   return save.commit();
 }
 
-void WriteBatch::SetSavePoint() {
+void WriteBatch::SetSavePoint() {  // 保存当前的savepoint
   if (save_points_ == nullptr) {
     save_points_.reset(new SavePoints());
   }
@@ -1799,16 +1799,16 @@ Status WriteBatch::RollbackToSavePoint() {
   SavePoint savepoint = save_points_->stack.top();
   save_points_->stack.pop();
 
-  assert(savepoint.size <= rep_.size());
+  assert(savepoint.size <= rep_.size());  // writebatch元素只添加不删除，删除操作也是append元素
   assert(static_cast<uint32_t>(savepoint.count) <= Count());
 
-  if (savepoint.size == rep_.size()) {
+  if (savepoint.size == rep_.size()) {  // 没有修改
     // No changes to rollback
-  } else if (savepoint.size == 0) {
+  } else if (savepoint.size == 0) {  // 如果有数据，然后clear,rollback先clear,再次回滚如何恢复数据
     // Rollback everything
     Clear();
   } else {
-    rep_.resize(savepoint.size);
+    rep_.resize(savepoint.size);  // 回滚到之前状态,resp append,
     if (prot_info_ != nullptr) {
       prot_info_->entries_.resize(savepoint.count);
     }
@@ -1830,11 +1830,11 @@ Status WriteBatch::PopSavePoint() {
   return Status::OK();
 }
 
-Status WriteBatch::UpdateTimestamps(
+Status WriteBatch::UpdateTimestamps(   //?
     const Slice& ts, std::function<size_t(uint32_t)> ts_sz_func) {
   TimestampUpdater<decltype(ts_sz_func)> ts_updater(prot_info_.get(),
                                                     std::move(ts_sz_func), ts);
-  const Status s = Iterate(&ts_updater);
+  const Status s = Iterate(&ts_updater);  // ts_updater重载了handle //更新protectinfo
   if (s.ok()) {
     needs_in_place_update_ts_ = false;
   }
@@ -1939,7 +1939,7 @@ Status WriteBatch::VerifyChecksum() const {
 
 namespace {
 
-class MemTableInserter : public WriteBatch::Handler {
+class MemTableInserter : public WriteBatch::Handler {  //?
   SequenceNumber sequence_;
   ColumnFamilyMemTables* const cf_mems_;
   FlushScheduler* const flush_scheduler_;

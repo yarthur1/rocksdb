@@ -163,7 +163,7 @@ void DumpSupportInfo(Logger* logger) {
 }
 }  // namespace
 
-DBImpl::DBImpl(const DBOptions& options, const std::string& dbname,
+DBImpl::DBImpl(const DBOptions& options, const std::string& dbname,  // DBImpl构造
                const bool seq_per_batch, const bool batch_per_txn,
                bool read_only)
     : dbname_(dbname),
@@ -278,7 +278,7 @@ DBImpl::DBImpl(const DBOptions& options, const std::string& dbname,
   assert(!db_session_id_.empty());
 
   periodic_task_functions_.emplace(PeriodicTaskType::kDumpStats,
-                                   [this]() { this->DumpStats(); });
+                                   [this]() { this->DumpStats(); });  // 各函数作用?
   periodic_task_functions_.emplace(PeriodicTaskType::kPersistStats,
                                    [this]() { this->PersistStats(); });
   periodic_task_functions_.emplace(PeriodicTaskType::kFlushInfoLog,
@@ -294,7 +294,7 @@ DBImpl::DBImpl(const DBOptions& options, const std::string& dbname,
       io_tracer_, db_id_, db_session_id_, options.daily_offpeak_time_utc,
       &error_handler_, read_only));
   column_family_memtables_.reset(
-      new ColumnFamilyMemTablesImpl(versions_->GetColumnFamilySet()));
+      new ColumnFamilyMemTablesImpl(versions_->GetColumnFamilySet()));  // 列族内存表?
 
   DumpRocksDBBuildVersion(immutable_db_options_.info_log.get());
   DumpDBFileSummary(immutable_db_options_, dbname_, db_session_id_);
@@ -3604,14 +3604,14 @@ Status DBImpl::CreateColumnFamilyImpl(const ReadOptions& read_options,
     edit.SetLogNumber(logfile_number_);
     edit.SetComparatorName(cf_options.comparator->Name());
     edit.SetPersistUserDefinedTimestamps(
-        cf_options.persist_user_defined_timestamps);
+        cf_options.persist_user_defined_timestamps);  // 用户定义的时间戳作用?
 
     // LogAndApply will both write the creation in MANIFEST and create
     // ColumnFamilyData object
     {  // write thread
       WriteThread::Writer w;
       write_thread_.EnterUnbatched(&w, &mutex_);
-      // LogAndApply will both write the creation in MANIFEST and create
+      // LogAndApply will both write the creation in MANIFEST and create  写manifest和创建列族
       // ColumnFamilyData object
       s = versions_->LogAndApply(nullptr, MutableCFOptions(cf_options),
                                  read_options, write_options, &edit, &mutex_,
@@ -3630,7 +3630,7 @@ Status DBImpl::CreateColumnFamilyImpl(const ReadOptions& read_options,
           versions_->GetColumnFamilySet()->GetColumnFamily(column_family_name);
       assert(cfd != nullptr);
       InstallSuperVersionAndScheduleWork(cfd, &sv_context,
-                                         *cfd->GetLatestMutableCFOptions());
+                                         *cfd->GetLatestMutableCFOptions());  // 
 
       if (!cfd->mem()->IsSnapshotSupported()) {
         is_snapshot_supported_ = false;
@@ -4126,7 +4126,7 @@ Status DBImpl::GetTimestampedSnapshots(
   return Status::OK();
 }
 
-SnapshotImpl* DBImpl::GetSnapshotImpl(bool is_write_conflict_boundary,
+SnapshotImpl* DBImpl::GetSnapshotImpl(bool is_write_conflict_boundary,  // snapshot 写?
                                       bool lock) {
   int64_t unix_time = 0;
   immutable_db_options_.clock->GetCurrentTime(&unix_time)
@@ -4146,9 +4146,9 @@ SnapshotImpl* DBImpl::GetSnapshotImpl(bool is_write_conflict_boundary,
     delete s;
     return nullptr;
   }
-  auto snapshot_seq = GetLastPublishedSequence();
+  auto snapshot_seq = GetLastPublishedSequence();  // 最新的seq
   SnapshotImpl* snapshot =
-      snapshots_.New(s, snapshot_seq, unix_time, is_write_conflict_boundary);
+      snapshots_.New(s, snapshot_seq, unix_time, is_write_conflict_boundary);  // snapshot list插入
   if (lock) {
     mutex_.Unlock();
   }

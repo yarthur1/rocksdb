@@ -202,7 +202,7 @@ class ColumnFamilyHandleInternal : public ColumnFamilyHandleImpl {
 };
 
 // holds references to memtable, all immutable memtables and version
-struct SuperVersion {
+struct SuperVersion {  // 作用?
   // Accessing members of this class is not thread-safe and requires external
   // synchronization (ie db mutex held or on write thread).
   ColumnFamilyData* cfd;
@@ -291,7 +291,7 @@ class ColumnFamilySet;
 
 // This class keeps all the data that a column family needs.
 // Most methods require DB mutex held, unless otherwise noted
-class ColumnFamilyData {
+class ColumnFamilyData {  // all the data that a column family needs
  public:
   ~ColumnFamilyData();
 
@@ -650,11 +650,11 @@ class ColumnFamilyData {
 
   // An object that keeps all the compaction stats
   // and picks the next compaction
-  std::unique_ptr<CompactionPicker> compaction_picker_;
+  std::unique_ptr<CompactionPicker> compaction_picker_;  // compaction
 
   ColumnFamilySet* column_family_set_;
 
-  std::unique_ptr<WriteControllerToken> write_controller_token_;
+  std::unique_ptr<WriteControllerToken> write_controller_token_;  // 限速
 
   // If true --> this ColumnFamily is currently present in DBImpl::flush_queue_
   bool queued_for_flush_;
@@ -702,7 +702,7 @@ class ColumnFamilyData {
 // * GetColumnFamily() -- either inside of DB mutex or from a write thread
 // * GetNextColumnFamilyID(), GetMaxColumnFamily(), UpdateMaxColumnFamily(),
 // NumberOfColumnFamilies -- inside of DB mutex
-class ColumnFamilySet {
+class ColumnFamilySet {   // 列族集合
  public:
   // ColumnFamilySet supports iteration
   class iterator {
@@ -759,7 +759,7 @@ class ColumnFamilySet {
     return ts_sz_for_record_;
   }
 
-  iterator begin() { return iterator(dummy_cfd_->next_); }
+  iterator begin() { return iterator(dummy_cfd_->next_); }  // dummy_cfd_ 表头
   iterator end() { return iterator(dummy_cfd_); }
 
   Cache* get_table_cache() { return table_cache_; }
@@ -781,8 +781,8 @@ class ColumnFamilySet {
   // * when reading, at least one condition needs to be satisfied:
   // 1. DB mutex locked
   // 2. accessed from a single-threaded write thread
-  UnorderedMap<std::string, uint32_t> column_families_;
-  UnorderedMap<uint32_t, ColumnFamilyData*> column_family_data_;
+  UnorderedMap<std::string, uint32_t> column_families_;  // name -> id
+  UnorderedMap<uint32_t, ColumnFamilyData*> column_family_data_;  // id -> ColumnFamilyData
 
   // Mutating / reading `running_ts_sz_` and `ts_sz_for_record_` follow
   // the same requirements as `column_families_` and `column_family_data_`.
@@ -796,12 +796,12 @@ class ColumnFamilySet {
   uint32_t max_column_family_;
   const FileOptions file_options_;
 
-  ColumnFamilyData* dummy_cfd_;
+  ColumnFamilyData* dummy_cfd_;  // 链表头
   // We don't hold the refcount here, since default column family always exists
   // We are also not responsible for cleaning up default_cfd_cache_. This is
   // just a cache that makes common case (accessing default column family)
   // faster
-  ColumnFamilyData* default_cfd_cache_;
+  ColumnFamilyData* default_cfd_cache_;  // id == 0代表默认列族
 
   const std::string db_name_;
   const ImmutableDBOptions* const db_options_;
@@ -902,7 +902,7 @@ class ColumnFamilyMemTablesImpl : public ColumnFamilyMemTables {
 
  private:
   ColumnFamilySet* column_family_set_;
-  ColumnFamilyData* current_;
+  ColumnFamilyData* current_;  // seek设置当前列族
   ColumnFamilyHandleInternal handle_;
 };
 

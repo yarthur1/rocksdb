@@ -90,7 +90,7 @@ void PessimisticTransaction::Initialize(const TransactionOptions& txn_options) {
     expiration_time_ = 0;
   }
 
-  if (txn_options.set_snapshot) {
+  if (txn_options.set_snapshot) {  // 事务初始化的时候设置snapshot，如何减少后续的冲突检测
     SetSnapshot();
   }
 
@@ -311,7 +311,7 @@ Status WriteCommittedTxn::Put(ColumnFamilyHandle* column_family,
   return Operate(column_family, key, do_validate, assume_tracked,
                  [column_family, &key, &value, this]() {
                    Status s =
-                       GetBatchForWrite()->Put(column_family, key, value);
+                       GetBatchForWrite()->Put(column_family, key, value);  // 只是写writebatch
                    if (s.ok()) {
                      ++num_puts_;
                    }
@@ -474,9 +474,9 @@ template <typename TKey, typename TOperation>
 Status WriteCommittedTxn::Operate(ColumnFamilyHandle* column_family,
                                   const TKey& key, const bool do_validate,
                                   const bool assume_tracked,
-                                  TOperation&& operation) {
+                                  TOperation&& operation) {  // 写入流程
   Status s;
-  if constexpr (std::is_same_v<Slice, TKey>) {
+  if constexpr (std::is_same_v<Slice, TKey>) {  // 相同的类型
     s = TryLock(column_family, key, /*read_only=*/false, /*exclusive=*/true,
                 do_validate, assume_tracked);
   } else if constexpr (std::is_same_v<SliceParts, TKey>) {
@@ -557,11 +557,11 @@ Status PessimisticTransaction::CommitBatch(WriteBatch* batch) {
 
   if (can_commit) {
     txn_state_.store(AWAITING_COMMIT);
-    s = CommitBatchInternal(batch);
+    s = CommitBatchInternal(batch);  // commit
     if (s.ok()) {
       txn_state_.store(COMMITTED);
     }
-  } else if (txn_state_ == LOCKS_STOLEN) {
+  } else if (txn_state_ == LOCKS_STOLEN) {  // 标记锁过期
     s = Status::Expired();
   } else {
     s = Status::InvalidArgument("Transaction is not in state for commit.");
@@ -626,7 +626,7 @@ Status WriteCommittedTxn::PrepareInternal() {
   WriteOptions write_options = write_options_;
   write_options.disableWAL = false;
   auto s = WriteBatchInternal::MarkEndPrepare(GetWriteBatch()->GetWriteBatch(),
-                                              name_);
+                                              name_);  // writebatch写入endprepare标记
   assert(s.ok());
   class MarkLogCallback : public PreReleaseCallback {
    public:
@@ -658,12 +658,12 @@ Status WriteCommittedTxn::PrepareInternal() {
   const size_t kNoBatchCount = 0;
   s = db_impl_->WriteImpl(write_options, GetWriteBatch()->GetWriteBatch(),
                           kNoWriteCallback, /*user_write_cb=*/nullptr,
-                          &log_number_, kRefNoLog, kDisableMemtable,
+                          &log_number_, kRefNoLog, kDisableMemtable,  // 不写memtable
                           KIgnoreSeqUsed, kNoBatchCount, &mark_log_callback);
   return s;
 }
 
-Status PessimisticTransaction::Commit() {
+Status PessimisticTransaction::Commit() {  // commit 流程
   bool commit_without_prepare = false;
   bool commit_prepared = false;
 
@@ -825,7 +825,7 @@ Status WriteCommittedTxn::CommitBatchInternal(WriteBatch* batch, size_t) {
   return s;
 }
 
-Status WriteCommittedTxn::CommitInternal() {
+Status WriteCommittedTxn::CommitInternal() {  // commit流程
   WriteBatchWithIndex* wbwi = GetWriteBatch();
   assert(wbwi);
   WriteBatch* wb = wbwi->GetWriteBatch();
@@ -911,7 +911,7 @@ Status WriteCommittedTxn::CommitInternal() {
 
 Status PessimisticTransaction::Rollback() {
   Status s;
-  if (txn_state_ == PREPARED) {
+  if (txn_state_ == PREPARED) {  // 2pc?
     txn_state_.store(AWAITING_ROLLBACK);
 
     s = RollbackInternal();
@@ -949,9 +949,9 @@ Status PessimisticTransaction::Rollback() {
 
 Status WriteCommittedTxn::RollbackInternal() {
   WriteBatch rollback_marker;
-  auto s = WriteBatchInternal::MarkRollback(&rollback_marker, name_);
+  auto s = WriteBatchInternal::MarkRollback(&rollback_marker, name_);  // writebatch写入rollback的事务
   assert(s.ok());
-  s = db_impl_->WriteImpl(write_options_, &rollback_marker);
+  s = db_impl_->WriteImpl(write_options_, &rollback_marker);  // 写数据
   return s;
 }
 
@@ -964,7 +964,7 @@ Status PessimisticTransaction::RollbackToSavePoint() {
     // Unlock any keys locked since last transaction
     auto& save_point_tracker = *save_points_->top().new_locks_;
     std::unique_ptr<LockTracker> t(
-        tracked_locks_->GetTrackedLocksSinceSavePoint(save_point_tracker));
+        tracked_locks_->GetTrackedLocksSinceSavePoint(save_point_tracker));  // 解锁savepoint之前已经完成的lock
     if (t) {
       txn_db_impl_->UnLock(this, *t);
     }
@@ -1068,7 +1068,7 @@ Status PessimisticTransaction::TryLock(ColumnFamilyHandle* column_family,
                                        const bool assume_tracked) {
   assert(!assume_tracked || !do_validate);
   Status s;
-  if (UNLIKELY(skip_concurrency_control_)) {
+  if (UNLIKELY(skip_concurrency_control_)) {  // 不需并发控制
     return s;
   }
   uint32_t cfh_id = GetColumnFamilyID(column_family);
@@ -1079,8 +1079,8 @@ Status PessimisticTransaction::TryLock(ColumnFamilyHandle* column_family,
   bool previously_locked;
   if (tracked_locks_->IsPointLockSupported()) {
     status = tracked_locks_->GetPointLockStatus(cfh_id, key_str);
-    previously_locked = status.locked;
-    lock_upgrade = previously_locked && exclusive && !status.exclusive;
+    previously_locked = status.locked;  // 已经加锁
+    lock_upgrade = previously_locked && exclusive && !status.exclusive;  // 需要更新写锁
   } else {
     // If the record is tracked, we can assume it was locked, too.
     previously_locked = assume_tracked;
@@ -1091,7 +1091,7 @@ Status PessimisticTransaction::TryLock(ColumnFamilyHandle* column_family,
   // Lock this key if this transactions hasn't already locked it or we require
   // an upgrade.
   if (!previously_locked || lock_upgrade) {
-    s = txn_db_impl_->TryLock(this, cfh_id, key_str, exclusive);
+    s = txn_db_impl_->TryLock(this, cfh_id, key_str, exclusive);  // 加锁成功或者阻塞超时
   }
 
   const ColumnFamilyHandle* const cfh =
@@ -1101,7 +1101,7 @@ Status PessimisticTransaction::TryLock(ColumnFamilyHandle* column_family,
   assert(ucmp);
   size_t ts_sz = ucmp->timestamp_size();
 
-  SetSnapshotIfNeeded();
+  SetSnapshotIfNeeded();  // 插入到snapshot list
 
   // Even though we do not care about doing conflict checking for this write,
   // we still need to take a lock to make sure we do not cause a conflict with
@@ -1131,21 +1131,21 @@ Status PessimisticTransaction::TryLock(ColumnFamilyHandle* column_family,
       // lock, which would be an unusual sequence.
       tracked_at_seq = db_->GetLatestSequenceNumber();
     }
-  } else if (s.ok()) {
+  } else if (s.ok()) {  // 加锁成功了
     // If a snapshot is set, we need to make sure the key hasn't been modified
     // since the snapshot.  This must be done after we locked the key.
     // If we already have validated an earilier snapshot it must has been
     // reflected in tracked_at_seq and ValidateSnapshot will return OK.
-    s = ValidateSnapshot(column_family, key, &tracked_at_seq);
+    s = ValidateSnapshot(column_family, key, &tracked_at_seq);  // 验证创建snapshot之后没有key被修改
 
-    if (!s.ok()) {
+    if (!s.ok()) {  // 加锁成功但是验证失败
       // Failed to validate key
       // Unlock key we just locked
       if (lock_upgrade) {
-        s = txn_db_impl_->TryLock(this, cfh_id, key_str, false /* exclusive */);
+        s = txn_db_impl_->TryLock(this, cfh_id, key_str, false /* exclusive */);  // 前面修改成了写锁，验证失败现在需要还原成读锁，会阻塞直到写锁超时后才会加读锁,如果没有超时一直阻塞?
         assert(s.ok());
       } else if (!previously_locked) {
-        txn_db_impl_->UnLock(this, cfh_id, key.ToString());
+        txn_db_impl_->UnLock(this, cfh_id, key.ToString());  // 需要还原成未加锁
       }
     }
   }
@@ -1163,8 +1163,8 @@ Status PessimisticTransaction::TryLock(ColumnFamilyHandle* column_family,
     // called previously since the last savepoint, with the same exclusive
     // setting, and at a lower sequence number, so skipping here should be
     // safe.
-    if (!assume_tracked) {
-      TrackKey(cfh_id, key_str, tracked_at_seq, read_only, exclusive);
+    if (!assume_tracked) {  // 还没有trace
+      TrackKey(cfh_id, key_str, tracked_at_seq, read_only, exclusive);  // trace lock的作用是啥？ 记录key lock的信息
     } else {
 #ifndef NDEBUG
       if (tracked_locks_->IsPointLockSupported()) {
@@ -1216,7 +1216,7 @@ Status PessimisticTransaction::ValidateSnapshot(
       return Status::OK();
     }
   } else {
-    snap_seq = db_impl_->GetLatestSequenceNumber();
+    snap_seq = db_impl_->GetLatestSequenceNumber();  // getforupdate?
   }
 
   // Otherwise we have either
@@ -1252,7 +1252,7 @@ bool PessimisticTransaction::TryStealingLocks() {
   assert(IsExpired());
   TransactionState expected = STARTED;
   return std::atomic_compare_exchange_strong(&txn_state_, &expected,
-                                             LOCKS_STOLEN);
+                                             LOCKS_STOLEN);  // 标记锁过期
 }
 
 void PessimisticTransaction::UnlockGetForUpdate(
@@ -1270,7 +1270,7 @@ Status PessimisticTransaction::SetName(const TransactionName& name) {
           "Transaction name length must be between 1 and 512 chars.");
     } else {
       name_ = name;
-      s = txn_db_impl_->RegisterTransaction(this);
+      s = txn_db_impl_->RegisterTransaction(this);  // 注册事务
       if (!s.ok()) {
         name_.clear();
       }

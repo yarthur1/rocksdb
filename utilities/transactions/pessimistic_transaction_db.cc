@@ -304,7 +304,7 @@ Status WrapAnotherDBInternal(
   *dbptr = nullptr;
   std::unique_ptr<PessimisticTransactionDB> txn_db;
   // txn_db owns object pointed to by the raw db pointer.
-  switch (txn_db_options.write_policy) {
+  switch (txn_db_options.write_policy) {  // 初始化事务db
     case WRITE_UNPREPARED:
       txn_db.reset(new WriteUnpreparedTxnDB(
           db, PessimisticTransactionDB::ValidateTxnDBOptions(txn_db_options)));
@@ -344,7 +344,7 @@ Status TransactionDB::WrapDB(
     const std::vector<size_t>& compaction_enabled_cf_indices,
     const std::vector<ColumnFamilyHandle*>& handles, TransactionDB** dbptr) {
   return WrapAnotherDBInternal(db, txn_db_options,
-                               compaction_enabled_cf_indices, handles, dbptr);
+                               compaction_enabled_cf_indices, handles, dbptr);  // im
 }
 
 Status TransactionDB::WrapStackableDB(

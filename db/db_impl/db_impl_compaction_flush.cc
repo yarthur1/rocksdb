@@ -4266,7 +4266,7 @@ void DBImpl::InstallSuperVersionAndScheduleWork(
 
   // Whenever we install new SuperVersion, we might need to issue new flushes or
   // compactions.
-  EnqueuePendingCompaction(cfd);
+  EnqueuePendingCompaction(cfd);   // compaction相关？
   MaybeScheduleFlushOrCompaction();
 
   // Update max_total_in_memory_state_

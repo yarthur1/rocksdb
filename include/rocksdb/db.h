@@ -234,7 +234,7 @@ class DB {
       std::vector<ColumnFamilyHandle*>* handles, DB** dbptr,
       bool error_if_wal_file_exists = false);
 
-  // OpenAsSecondary() creates a secondary instance that supports read-only
+  // OpenAsSecondary() creates a secondary instance that supports read-only 只读操作
   // operations and supports dynamic catch up with the primary (through a
   // call to TryCatchUpWithPrimary()).
   //
@@ -546,7 +546,7 @@ class DB {
   // row_cache is configured.
   virtual Status DeleteRange(const WriteOptions& options,
                              ColumnFamilyHandle* column_family,
-                             const Slice& begin_key, const Slice& end_key);
+                             const Slice& begin_key, const Slice& end_key);   // 怎么实现
   virtual Status DeleteRange(const WriteOptions& options,
                              ColumnFamilyHandle* column_family,
                              const Slice& begin_key, const Slice& end_key,

@@ -157,7 +157,7 @@ uint8_t WriteThread::AwaitState(Writer* w, uint8_t goal_mask,
       auto iter_begin = spin_begin;
       while ((iter_begin - spin_begin) <=
              std::chrono::microseconds(max_yield_usec_)) {
-        std::this_thread::yield();
+        std::this_thread::yield();  //主动让出CPU
 
         state = w->state.load(std::memory_order_acquire);
         if ((state & goal_mask) != 0) {

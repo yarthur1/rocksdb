@@ -130,7 +130,7 @@ Status TransactionUtil::CheckKey(DBImpl* db_impl, SuperVersion* sv,
       result = s;
     } else if (found_record_for_key) {
       bool write_conflict = snap_checker == nullptr
-                                ? snap_seq < seq
+                                ? snap_seq < seq   // key在snapshot后有修改
                                 : !snap_checker->IsVisible(seq);
       // Perform conflict checking based on timestamp if applicable.
       if (enable_udt_validation && !write_conflict && read_ts != nullptr) {

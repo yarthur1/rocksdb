@@ -195,10 +195,10 @@ Status DBImpl::WriteWithCallback(const WriteOptions& write_options,
 Status DBImpl::WriteImpl(const WriteOptions& write_options,
                          WriteBatch* my_batch, WriteCallback* callback,
                          UserWriteCallback* user_write_cb, uint64_t* log_used,
-                         uint64_t log_ref, bool disable_memtable,
+                         uint64_t log_ref, bool disable_memtable,  // prepare disable_memtable
                          uint64_t* seq_used, size_t batch_cnt,
                          PreReleaseCallback* pre_release_callback,
-                         PostMemTableCallback* post_memtable_callback) {
+                         PostMemTableCallback* post_memtable_callback) {  // 写入流程
   assert(!seq_per_batch_ || batch_cnt != 0);
   assert(my_batch == nullptr || my_batch->Count() == 0 ||
          write_options.protection_bytes_per_key == 0 ||
@@ -292,18 +292,18 @@ Status DBImpl::WriteImpl(const WriteOptions& write_options,
          disable_memtable);
 
   if (write_options.low_pri) {
-    Status s = ThrottleLowPriWritesIfNeeded(write_options, my_batch);
+    Status s = ThrottleLowPriWritesIfNeeded(write_options, my_batch);  // 限速?
     if (!s.ok()) {
       return s;
     }
   }
 
-  if (two_write_queues_ && disable_memtable) {
+  if (two_write_queues_ && disable_memtable) {  // prepare
     AssignOrder assign_order =
         seq_per_batch_ ? kDoAssignOrder : kDontAssignOrder;
     // Otherwise it is WAL-only Prepare batches in WriteCommitted policy and
     // they don't consume sequence.
-    return WriteImplWALOnly(
+    return WriteImplWALOnly(   // 2pc?
         &nonmem_write_thread_, write_options, my_batch, callback, user_write_cb,
         log_used, log_ref, seq_used, batch_cnt, pre_release_callback,
         assign_order, kDontPublishLastSeq, disable_memtable);
@@ -1071,7 +1071,7 @@ Status DBImpl::WriteImplWALOnly(
   Status status;
   if (!write_options.disableWAL) {
     IOStatus io_s =
-        ConcurrentWriteToWAL(write_group, log_used, &last_sequence, seq_inc);
+        ConcurrentWriteToWAL(write_group, log_used, &last_sequence, seq_inc);  // wal
     status = io_s;
     // last_sequence may not be set if there is an error
     // This error checking and return is moved up to avoid using uninitialized
@@ -2455,7 +2455,7 @@ Status DB::Put(const WriteOptions& opt, ColumnFamilyHandle* column_family,
   if (!s.ok()) {
     return s;
   }
-  return Write(opt, &batch);
+  return Write(opt, &batch);  // DBImpl::Write
 }
 
 Status DB::Put(const WriteOptions& opt, ColumnFamilyHandle* column_family,
@@ -2467,11 +2467,11 @@ Status DB::Put(const WriteOptions& opt, ColumnFamilyHandle* column_family,
   WriteBatch batch(0 /* reserved_bytes */, 0 /* max_bytes */,
                    opt.protection_bytes_per_key,
                    default_cf_ucmp->timestamp_size());
-  Status s = batch.Put(column_family, key, ts, value);
+  Status s = batch.Put(column_family, key, ts, value);  // 设置batch
   if (!s.ok()) {
     return s;
   }
-  return Write(opt, &batch);
+  return Write(opt, &batch);  // 写batch
 }
 
 Status DB::PutEntity(const WriteOptions& options,

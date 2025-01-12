@@ -5719,7 +5719,7 @@ Status VersionSet::ProcessManifestWrites(
       assert(new_cf_options != nullptr);
       assert(max_last_sequence == descriptor_last_sequence_);
       CreateColumnFamily(*new_cf_options, read_options,
-                         first_writer.edit_list.front());
+                         first_writer.edit_list.front());   // 创建列族??
     } else if (first_writer.edit_list.front()->IsColumnFamilyDrop()) {
       assert(batch_edits.size() == 1);
       assert(max_last_sequence == descriptor_last_sequence_);

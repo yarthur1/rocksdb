@@ -25,7 +25,7 @@ struct TrackedKeyInfo {
   explicit TrackedKeyInfo(SequenceNumber seq_no)
       : seq(seq_no), num_writes(0), num_reads(0), exclusive(false) {}
 
-  void Merge(const TrackedKeyInfo& info) {
+  void Merge(const TrackedKeyInfo& info) {  // 合并新的trace
     assert(seq <= info.seq);
     num_reads += info.num_reads;
     num_writes += info.num_writes;
@@ -33,12 +33,12 @@ struct TrackedKeyInfo {
   }
 };
 
-using TrackedKeyInfos = std::unordered_map<std::string, TrackedKeyInfo>;
+using TrackedKeyInfos = std::unordered_map<std::string, TrackedKeyInfo>;  // string是一个key还是多个key
 
 using TrackedKeys = std::unordered_map<ColumnFamilyId, TrackedKeyInfos>;
 
 // Tracks point locks on single keys.
-class PointLockTracker : public LockTracker {
+class PointLockTracker : public LockTracker {   // lock trace
  public:
   PointLockTracker() = default;
 
@@ -88,7 +88,7 @@ class PointLockTrackerFactory : public LockTrackerFactory {
     return instance;
   }
 
-  LockTracker* Create() const override { return new PointLockTracker(); }
+  LockTracker* Create() const override { return new PointLockTracker(); }  // 锁trace
 
  private:
   PointLockTrackerFactory() {}

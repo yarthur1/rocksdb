@@ -6,7 +6,7 @@
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file. See the AUTHORS file for names of contributors.
 //
-// WriteBatch holds a collection of updates to apply atomically to a DB.
+// WriteBatch holds a collection of updates to apply atomically to a DB.  原子性？
 //
 // The updates are applied in the order in which they are added
 // to the WriteBatch.  For example, the value of "key" will be "v3"
@@ -247,7 +247,7 @@ class WriteBatch : public WriteBatchBase {
         // Put() historically doesn't return status. We didn't want to be
         // backwards incompatible so we didn't change the return status
         // (this is a public API). We do an ordinary get and return Status::OK()
-        Put(key, value);
+        Put(key, value);    //如何实现
         return Status::OK();
       }
       return Status::InvalidArgument(
@@ -496,12 +496,12 @@ class WriteBatch : public WriteBatchBase {
   // remove duplicate keys. Remove it when the hack is replaced with a proper
   // solution.
   friend class WriteBatchWithIndex;
-  std::unique_ptr<SavePoints> save_points_;
+  std::unique_ptr<SavePoints> save_points_;  // stack<SavePoint>
 
   // When sending a WriteBatch through WriteImpl we might want to
   // specify that only the first x records of the batch be written to
   // the WAL.
-  SavePoint wal_term_point_;
+  SavePoint wal_term_point_;  // 部分写入?
 
   // Is the content of the batch the application's latest state that meant only
   // to be used for recovery? Refer to

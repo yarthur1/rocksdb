@@ -54,7 +54,7 @@ ColumnFamilyHandleImpl::ColumnFamilyHandleImpl(
 ColumnFamilyHandleImpl::~ColumnFamilyHandleImpl() {
   if (cfd_ != nullptr) {
     for (auto& listener : cfd_->ioptions()->listeners) {
-      listener->OnColumnFamilyHandleDeletionStarted(this);
+      listener->OnColumnFamilyHandleDeletionStarted(this);  // 
     }
     // Job id == 0 means that this is not our background process, but rather
     // user thread
@@ -73,7 +73,7 @@ ColumnFamilyHandleImpl::~ColumnFamilyHandleImpl() {
     if (job_context.HaveSomethingToDelete()) {
       bool defer_purge =
           db_->immutable_db_options().avoid_unnecessary_blocking_io;
-      db_->PurgeObsoleteFiles(job_context, defer_purge);
+      db_->PurgeObsoleteFiles(job_context, defer_purge);  // 标记过时的文件?
     }
     job_context.Clean();
   }
@@ -1189,7 +1189,7 @@ bool ColumnFamilyData::RangeOverlapWithCompaction(
       smallest_user_key, largest_user_key, level);
 }
 
-Status ColumnFamilyData::RangesOverlapWithMemtables(
+Status ColumnFamilyData::RangesOverlapWithMemtables(   //?????
     const autovector<UserKeyRange>& ranges, SuperVersion* super_version,
     bool allow_data_in_errors, bool* overlap) {
   assert(overlap != nullptr);
@@ -1211,7 +1211,7 @@ Status ColumnFamilyData::RangesOverlapWithMemtables(
 
   auto read_seq = super_version->current->version_set()->LastSequence();
   ReadRangeDelAggregator range_del_agg(&internal_comparator_, read_seq);
-  auto* active_range_del_iter = super_version->mem->NewRangeTombstoneIterator(
+  auto* active_range_del_iter = super_version->mem->NewRangeTombstoneIterator(  // 墓碑
       read_opts, read_seq, false /* immutable_memtable */);
   range_del_agg.AddTombstones(
       std::unique_ptr<FragmentedRangeTombstoneIterator>(active_range_del_iter));
@@ -1750,7 +1750,7 @@ ColumnFamilyData* ColumnFamilySet::CreateColumnFamily(
   column_family_data_.insert({id, new_cfd});
   auto ucmp = new_cfd->user_comparator();
   assert(ucmp);
-  size_t ts_sz = ucmp->timestamp_size();
+  size_t ts_sz = ucmp->timestamp_size();  // user_comparator中的时间戳size?
   running_ts_sz_.insert({id, ts_sz});
   if (ts_sz > 0) {
     ts_sz_for_record_.insert({id, ts_sz});
@@ -1787,7 +1787,7 @@ bool ColumnFamilyMemTablesImpl::Seek(uint32_t column_family_id) {
   } else {
     current_ = column_family_set_->GetColumnFamily(column_family_id);
   }
-  handle_.SetCFD(current_);
+  handle_.SetCFD(current_);  // 绑定列族
   return current_ != nullptr;
 }
 

@@ -391,7 +391,7 @@ struct DeadlockPath {
   bool empty() { return path.empty() && !limit_exceeded; }
 };
 
-class TransactionDB : public StackableDB {
+class TransactionDB : public StackableDB {  // 
  public:
   // Optimized version of ::Write that receives more optimization request such
   // as skip_concurrency_control.

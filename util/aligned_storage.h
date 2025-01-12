@@ -17,7 +17,7 @@ namespace ROCKSDB_NAMESPACE {
 template <typename T, std::size_t Align = alignof(T)>
 struct aligned_storage {
   struct type {
-    alignas(Align) unsigned char data[sizeof(T)];
+    alignas(Align) unsigned char data[sizeof(T)];  // data的起始地址是Align的倍数
   };
 };
 

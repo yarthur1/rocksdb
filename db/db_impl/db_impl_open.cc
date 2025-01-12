@@ -31,7 +31,7 @@
 
 namespace ROCKSDB_NAMESPACE {
 Options SanitizeOptions(const std::string& dbname, const Options& src,
-                        bool read_only, Status* logger_creation_s) {
+                        bool read_only, Status* logger_creation_s) {   // opt设置
   auto db_options =
       SanitizeOptions(dbname, DBOptions(src), read_only, logger_creation_s);
   ImmutableDBOptions immutable_db_options(db_options);
@@ -1861,7 +1861,7 @@ Status DB::Open(const Options& options, const std::string& dbname, DB** dbptr) {
 
 Status DB::Open(const DBOptions& db_options, const std::string& dbname,
                 const std::vector<ColumnFamilyDescriptor>& column_families,
-                std::vector<ColumnFamilyHandle*>* handles, DB** dbptr) {
+                std::vector<ColumnFamilyHandle*>* handles, DB** dbptr) {  // 指定列族
   const bool kSeqPerBatch = true;
   const bool kBatchPerTxn = true;
   ThreadStatusUtil::SetEnableTracking(db_options.enable_thread_tracking);
@@ -1870,7 +1870,7 @@ Status DB::Open(const DBOptions& db_options, const std::string& dbname,
   Status s;
   do {
     s = DBImpl::Open(db_options, dbname, column_families, handles, dbptr,
-                     !kSeqPerBatch, kBatchPerTxn, can_retry, &can_retry);
+                     !kSeqPerBatch, kBatchPerTxn, can_retry, &can_retry);  // 每个key seq加一
   } while (!s.ok() && can_retry);
   ThreadStatusUtil::ResetThreadStatus();
   return s;
@@ -2027,7 +2027,7 @@ Status DBImpl::Open(const DBOptions& db_options, const std::string& dbname,
         std::max(max_write_buffer_size, cf.options.write_buffer_size);
   }
 
-  DBImpl* impl = new DBImpl(db_options, dbname, seq_per_batch, batch_per_txn);
+  DBImpl* impl = new DBImpl(db_options, dbname, seq_per_batch, batch_per_txn);  // new ColumnFamilyMemTablesImpl
   if (!impl->immutable_db_options_.info_log) {
     s = impl->init_logger_creation_s_;
     delete impl;
@@ -2035,10 +2035,10 @@ Status DBImpl::Open(const DBOptions& db_options, const std::string& dbname,
   } else {
     assert(impl->init_logger_creation_s_.ok());
   }
-  s = impl->env_->CreateDirIfMissing(impl->immutable_db_options_.GetWalDir());
+  s = impl->env_->CreateDirIfMissing(impl->immutable_db_options_.GetWalDir());  // wal
   if (s.ok()) {
     std::vector<std::string> paths;
-    for (auto& db_path : impl->immutable_db_options_.db_paths) {
+    for (auto& db_path : impl->immutable_db_options_.db_paths) {  // 各种目录代表什么
       paths.emplace_back(db_path.path);
     }
     for (auto& cf : column_families) {
@@ -2074,7 +2074,7 @@ Status DBImpl::Open(const DBOptions& db_options, const std::string& dbname,
 
   // Handles create_if_missing, error_if_exists
   uint64_t recovered_seq(kMaxSequenceNumber);
-  s = impl->Recover(column_families, false /* read_only */,
+  s = impl->Recover(column_families, false /* read_only */,   // 列族如何恢复
                     false /* error_if_wal_file_exists */,
                     false /* error_if_data_exists_in_wals */, is_retry,
                     &recovered_seq, &recovery_ctx, can_retry);
@@ -2149,12 +2149,12 @@ Status DBImpl::Open(const DBOptions& db_options, const std::string& dbname,
 
   if (s.ok() && impl->immutable_db_options_.persist_stats_to_disk) {
     impl->mutex_.AssertHeld();
-    s = impl->InitPersistStatsColumnFamily();
+    s = impl->InitPersistStatsColumnFamily();  // PersistStatsColumnFamily
   }
 
   if (s.ok()) {
     // set column family handles
-    for (const auto& cf : column_families) {
+    for (const auto& cf : column_families) {   // 列族创建?
       auto cfd =
           impl->versions_->GetColumnFamilySet()->GetColumnFamily(cf.name);
       if (cfd != nullptr) {
@@ -2168,7 +2168,7 @@ Status DBImpl::Open(const DBOptions& db_options, const std::string& dbname,
           impl->mutex_.Unlock();
           // NOTE: the work normally done in WrapUpCreateColumnFamilies will
           // be done separately below.
-          s = impl->CreateColumnFamilyImpl(read_options, write_options,
+          s = impl->CreateColumnFamilyImpl(read_options, write_options,  // ??
                                            cf.options, cf.name, &handle);
           impl->mutex_.Lock();
           if (s.ok()) {
@@ -2187,7 +2187,7 @@ Status DBImpl::Open(const DBOptions& db_options, const std::string& dbname,
   if (s.ok()) {
     SuperVersionContext sv_context(/* create_superversion */ true);
     for (auto cfd : *impl->versions_->GetColumnFamilySet()) {
-      impl->InstallSuperVersionAndScheduleWork(
+      impl->InstallSuperVersionAndScheduleWork(   // superversion
           cfd, &sv_context, *cfd->GetLatestMutableCFOptions());
     }
     sv_context.Clean();

@@ -24,7 +24,7 @@ namespace ROCKSDB_NAMESPACE {
 
 struct LockInfo {
   bool exclusive;
-  autovector<TransactionID> txn_ids;
+  autovector<TransactionID> txn_ids;  // 后续如何处理
 
   // Transaction locks are not valid after this time in us
   uint64_t expiration_time;
@@ -88,7 +88,7 @@ struct LockMap {
   // (Only maintained if PointLockManager::max_num_locks_ is positive.)
   std::atomic<int64_t> lock_cnt{0};
 
-  std::vector<LockMapStripe*> lock_map_stripes_;
+  std::vector<LockMapStripe*> lock_map_stripes_;  //  每个cf对应多个stripes
 
   size_t GetStripe(const std::string& key) const;
 };
@@ -204,13 +204,13 @@ bool PointLockManager::IsLockExpired(TransactionID txn_id,
     // return how many microseconds until lock will be expired
     *expire_time = lock_info.expiration_time;
   } else {
-    for (auto id : lock_info.txn_ids) {
-      if (txn_id == id) {
+    for (auto id : lock_info.txn_ids) {  // 锁过期了，其中的txn如何处理
+      if (txn_id == id) {  // 如果传入的已经在vector中，跳过
         continue;
       }
 
-      bool success = txn_db_impl_->TryStealingExpiredTransactionLocks(id);
-      if (!success) {
+      bool success = txn_db_impl_->TryStealingExpiredTransactionLocks(id);  // 如何处理,标记锁过期
+      if (!success) {  // 如果steal不成功，返回不过期
         expired = false;
         *expire_time = 0;
         break;
@@ -242,7 +242,7 @@ Status PointLockManager::TryLock(PessimisticTransaction* txn,
   LockMapStripe* stripe = lock_map->lock_map_stripes_.at(stripe_num);
 
   LockInfo lock_info(txn->GetID(), txn->GetExpirationTime(), exclusive);
-  int64_t timeout = txn->GetLockTimeout();
+  int64_t timeout = txn->GetLockTimeout();  // 加锁超时时间
 
   return AcquireWithTimeout(txn, lock_map, stripe, column_family_id, key, env,
                             timeout, lock_info);
@@ -263,9 +263,9 @@ Status PointLockManager::AcquireWithTimeout(
 
   if (timeout < 0) {
     // If timeout is negative, we wait indefinitely to acquire the lock
-    result = stripe->stripe_mutex->Lock();
+    result = stripe->stripe_mutex->Lock();  // 互斥锁
   } else {
-    result = stripe->stripe_mutex->TryLockFor(timeout);
+    result = stripe->stripe_mutex->TryLockFor(timeout);  // 加锁过程?
   }
 
   if (!result.ok()) {
@@ -279,7 +279,7 @@ Status PointLockManager::AcquireWithTimeout(
   result = AcquireLocked(lock_map, stripe, key, env, lock_info,
                          &expire_time_hint, &wait_ids);
 
-  if (!result.ok() && timeout != 0) {
+  if (!result.ok() && timeout != 0) {  // 加锁失败并设置了超时
     PERF_TIMER_GUARD(key_lock_wait_time);
     PERF_COUNTER_ADD(key_lock_wait_count, 1);
     // If we weren't able to acquire the lock, we will keep retrying as long
@@ -301,21 +301,21 @@ Status PointLockManager::AcquireWithTimeout(
       // We are dependent on a transaction to finish, so perform deadlock
       // detection.
       if (wait_ids.size() != 0) {
-        if (txn->IsDeadlockDetect()) {
+        if (txn->IsDeadlockDetect()) {  // 死锁检测
           if (IncrementWaiters(txn, wait_ids, key, column_family_id,
-                               lock_info.exclusive, env)) {
+                               lock_info.exclusive, env)) {  // 检测到死锁
             result = Status::Busy(Status::SubCode::kDeadlock);
             stripe->stripe_mutex->UnLock();
             return result;
           }
         }
-        txn->SetWaitingTxn(wait_ids, column_family_id, &key);
+        txn->SetWaitingTxn(wait_ids, column_family_id, &key);  // ?
       }
 
       TEST_SYNC_POINT("PointLockManager::AcquireWithTimeout:WaitingTxn");
       if (cv_end_time < 0) {
         // Wait indefinitely
-        result = stripe->stripe_cv->Wait(stripe->stripe_mutex);
+        result = stripe->stripe_cv->Wait(stripe->stripe_mutex);  // 其他事务解锁时会notify cv
       } else {
         uint64_t now = env->NowMicros();
         if (static_cast<uint64_t>(cv_end_time) > now) {
@@ -327,7 +327,7 @@ Status PointLockManager::AcquireWithTimeout(
       if (wait_ids.size() != 0) {
         txn->ClearWaitingTxn();
         if (txn->IsDeadlockDetect()) {
-          DecrementWaiters(txn, wait_ids);
+          DecrementWaiters(txn, wait_ids);  // 删除锁依赖
         }
       }
 
@@ -339,7 +339,7 @@ Status PointLockManager::AcquireWithTimeout(
       }
 
       if (result.ok() || result.IsTimedOut()) {
-        result = AcquireLocked(lock_map, stripe, key, env, lock_info,
+        result = AcquireLocked(lock_map, stripe, key, env, lock_info,  // 再获取一次
                                &expire_time_hint, &wait_ids);
       }
     } while (!result.ok() && !timed_out);
@@ -395,14 +395,14 @@ bool PointLockManager::IncrementWaiters(
   }
 
   // No deadlock if nobody is waiting on self.
-  if (!rev_wait_txn_map_.Contains(id)) {
+  if (!rev_wait_txn_map_.Contains(id)) {  // 没有任何txn被当前事务阻塞
     return false;
   }
 
   const auto* next_ids = &wait_ids;
   int parent = -1;
   int64_t deadlock_time = 0;
-  for (int tail = 0, head = 0; head < txn->GetDeadlockDetectDepth(); head++) {
+  for (int tail = 0, head = 0; head < txn->GetDeadlockDetectDepth(); head++) {  // 检测深度
     int i = 0;
     if (next_ids) {
       for (; i < static_cast<int>(next_ids->size()) &&
@@ -411,7 +411,7 @@ bool PointLockManager::IncrementWaiters(
         queue_values[tail + i] = (*next_ids)[i];
         queue_parents[tail + i] = parent;
       }
-      tail += i;
+      tail += i;  // 最大深度或者size
     }
 
     // No more items in the list, meaning no deadlock.
@@ -419,8 +419,8 @@ bool PointLockManager::IncrementWaiters(
       return false;
     }
 
-    auto next = queue_values[head];
-    if (next == id) {
+    auto next = queue_values[head];  // key阻塞的txn
+    if (next == id) {  // 检测到死锁
       std::vector<DeadlockInfo> path;
       while (head != -1) {
         assert(wait_txn_map_.Contains(queue_values[head]));
@@ -428,7 +428,7 @@ bool PointLockManager::IncrementWaiters(
         auto extracted_info = wait_txn_map_.Get(queue_values[head]);
         path.push_back({queue_values[head], extracted_info.m_cf_id,
                         extracted_info.m_exclusive,
-                        extracted_info.m_waiting_key});
+                        extracted_info.m_waiting_key});  // 记录路径
         head = queue_parents[head];
       }
       if (!env->GetCurrentTime(&deadlock_time).ok()) {
@@ -439,13 +439,13 @@ bool PointLockManager::IncrementWaiters(
         */
         deadlock_time = 0;
       }
-      std::reverse(path.begin(), path.end());
+      std::reverse(path.begin(), path.end());  // 依赖路径
       dlock_buffer_.AddNewPath(DeadlockPath(path, deadlock_time));
       deadlock_time = 0;
-      DecrementWaitersImpl(txn, wait_ids);
+      DecrementWaitersImpl(txn, wait_ids);  // 解决死锁？
       return true;
     } else if (!wait_txn_map_.Contains(next)) {
-      next_ids = nullptr;
+      next_ids = nullptr;  // 沿用之前的queue_values
       continue;
     } else {
       parent = head;
@@ -475,8 +475,8 @@ Status PointLockManager::AcquireLocked(LockMap* lock_map, LockMapStripe* stripe,
                                        const std::string& key, Env* env,
                                        const LockInfo& txn_lock_info,
                                        uint64_t* expire_time,
-                                       autovector<TransactionID>* txn_ids) {
-  assert(txn_lock_info.txn_ids.size() == 1);
+                                       autovector<TransactionID>* txn_ids) {  // txn_lock_info获取锁
+  assert(txn_lock_info.txn_ids.size() == 1);  // 只有一个事务
 
   Status result;
   // Check if this key is already locked
@@ -484,14 +484,14 @@ Status PointLockManager::AcquireLocked(LockMap* lock_map, LockMapStripe* stripe,
   if (stripe_iter != stripe->keys.end()) {
     // Lock already held
     LockInfo& lock_info = stripe_iter->second;
-    assert(lock_info.txn_ids.size() == 1 || !lock_info.exclusive);
+    assert(lock_info.txn_ids.size() == 1 || !lock_info.exclusive);  // 读锁多个，写锁一个
 
-    if (lock_info.exclusive || txn_lock_info.exclusive) {
+    if (lock_info.exclusive || txn_lock_info.exclusive) {  // 写锁
       if (lock_info.txn_ids.size() == 1 &&
-          lock_info.txn_ids[0] == txn_lock_info.txn_ids[0]) {
+          lock_info.txn_ids[0] == txn_lock_info.txn_ids[0]) {  // 已经获取lock
         // The list contains one txn and we're it, so just take it.
         lock_info.exclusive = txn_lock_info.exclusive;
-        lock_info.expiration_time = txn_lock_info.expiration_time;
+        lock_info.expiration_time = txn_lock_info.expiration_time;  // 更新stripe中的信息
       } else {
         // Check if it's expired. Skips over txn_lock_info.txn_ids[0] in case
         // it's there for a shared lock with multiple holders which was not
@@ -499,24 +499,24 @@ Status PointLockManager::AcquireLocked(LockMap* lock_map, LockMapStripe* stripe,
         if (IsLockExpired(txn_lock_info.txn_ids[0], lock_info, env,
                           expire_time)) {
           // lock is expired, can steal it
-          lock_info.txn_ids = txn_lock_info.txn_ids;
+          lock_info.txn_ids = txn_lock_info.txn_ids;  // lock_info过期，重新更新
           lock_info.exclusive = txn_lock_info.exclusive;
           lock_info.expiration_time = txn_lock_info.expiration_time;
           // lock_cnt does not change
         } else {
-          result = Status::TimedOut(Status::SubCode::kLockTimeout);
+          result = Status::TimedOut(Status::SubCode::kLockTimeout);  // 获取锁失败
           *txn_ids = lock_info.txn_ids;
         }
       }
     } else {
       // We are requesting shared access to a shared lock, so just grant it.
-      lock_info.txn_ids.push_back(txn_lock_info.txn_ids[0]);
+      lock_info.txn_ids.push_back(txn_lock_info.txn_ids[0]);  // 加读锁等待
       // Using std::max means that expiration time never goes down even when
       // a transaction is removed from the list. The correct solution would be
       // to track expiry for every transaction, but this would also work for
       // now.
       lock_info.expiration_time =
-          std::max(lock_info.expiration_time, txn_lock_info.expiration_time);
+          std::max(lock_info.expiration_time, txn_lock_info.expiration_time);  // 读锁，更新过期时间
     }
   } else {  // Lock not held.
     // Check lock limit
@@ -595,7 +595,7 @@ void PointLockManager::UnLock(PessimisticTransaction* txn,
   stripe->stripe_mutex->UnLock();
 
   // Signal waiting threads to retry locking
-  stripe->stripe_cv->NotifyAll();
+  stripe->stripe_cv->NotifyAll();  // 通知
 }
 
 void PointLockManager::UnLock(PessimisticTransaction* txn,

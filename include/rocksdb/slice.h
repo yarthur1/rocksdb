@@ -229,7 +229,7 @@ struct SliceParts {
   SliceParts() : parts(nullptr), num_parts(0) {}
 
   const Slice* parts;
-  int num_parts;
+  int num_parts;  // 元素个数
 };
 
 inline bool operator==(const Slice& x, const Slice& y) {

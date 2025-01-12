@@ -46,7 +46,7 @@ class DeadlockInfoBufferTempl {
       working.resize(buffer_idx_);
     } else {
       std::rotate(working.begin(), working.begin() + buffer_idx_,
-                  working.end());
+                  working.end());  // 将后面的内容移到前面
     }
 
     return working;
@@ -67,10 +67,10 @@ class DeadlockInfoBufferTempl {
     buffer_idx_ = (buffer_idx_ + 1) % paths_buffer_.size();
   }
 
-  void Resize(uint32_t target_size) {
+  void Resize(uint32_t target_size) {  // 回翻转path
     std::lock_guard<std::mutex> lock(paths_buffer_mutex_);
 
-    paths_buffer_ = Normalize();
+    paths_buffer_ = Normalize();  // path翻转了
 
     // Drop the deadlocks that will no longer be needed ater the normalize
     if (target_size < paths_buffer_.size()) {
@@ -101,13 +101,13 @@ class DeadlockInfoBufferTempl {
 using DeadlockInfoBuffer = DeadlockInfoBufferTempl<DeadlockPath>;
 
 struct TrackedTrxInfo {
-  autovector<TransactionID> m_neighbors;
+  autovector<TransactionID> m_neighbors;  // 已经等待的txn
   uint32_t m_cf_id;
   bool m_exclusive;
-  std::string m_waiting_key;
+  std::string m_waiting_key;  // 获取的key
 };
 
-class PointLockManager : public LockManager {
+class PointLockManager : public LockManager {  // 悲观锁管理
  public:
   PointLockManager(PessimisticTransactionDB* db,
                    const TransactionDBOptions& opt);
@@ -119,7 +119,7 @@ class PointLockManager : public LockManager {
 
   bool IsPointLockSupported() const override { return true; }
 
-  bool IsRangeLockSupported() const override { return false; }
+  bool IsRangeLockSupported() const override { return false; }  // 不支持范围加锁
 
   const LockTrackerFactory& GetLockTrackerFactory() const override {
     return PointLockTrackerFactory::Get();
@@ -172,20 +172,20 @@ class PointLockManager : public LockManager {
   InstrumentedMutex lock_map_mutex_;
 
   // Map of ColumnFamilyId to locked key info
-  using LockMaps = UnorderedMap<uint32_t, std::shared_ptr<LockMap>>;
+  using LockMaps = UnorderedMap<uint32_t, std::shared_ptr<LockMap>>;  // cf->lockmap
   LockMaps lock_maps_;
 
   // Thread-local cache of entries in lock_maps_.  This is an optimization
   // to avoid acquiring a mutex in order to look up a LockMap
-  std::unique_ptr<ThreadLocalPtr> lock_maps_cache_;
+  std::unique_ptr<ThreadLocalPtr> lock_maps_cache_;  // thread_local实现 LockMaps uint32 ptr不会改变
 
   // Must be held when modifying wait_txn_map_ and rev_wait_txn_map_.
   std::mutex wait_txn_map_mutex_;
 
   // Maps from waitee -> number of waiters.
-  HashMap<TransactionID, int> rev_wait_txn_map_;
+  HashMap<TransactionID, int> rev_wait_txn_map_;  // 每个txn ID wait lock次数
   // Maps from waiter -> waitee.
-  HashMap<TransactionID, TrackedTrxInfo> wait_txn_map_;
+  HashMap<TransactionID, TrackedTrxInfo> wait_txn_map_;  // 等待的txn -> 已经等待的信息
   DeadlockInfoBuffer dlock_buffer_;
 
   // Used to allocate mutexes/condvars to use when locking keys

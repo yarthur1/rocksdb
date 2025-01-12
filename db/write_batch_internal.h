@@ -251,7 +251,7 @@ class WriteBatchInternal {
 // LocalSavePoint is similar to a scope guard
 class LocalSavePoint {
  public:
-  explicit LocalSavePoint(WriteBatch* batch)
+  explicit LocalSavePoint(WriteBatch* batch)  // 创建时根据当前size创建savepoint,commit截断时丢弃新添加的值
       : batch_(batch),
         savepoint_(batch->GetDataSize(), batch->Count(),
                    batch->content_flags_.load(std::memory_order_relaxed))
@@ -269,8 +269,8 @@ class LocalSavePoint {
 #ifndef NDEBUG
     committed_ = true;
 #endif
-    if (batch_->max_bytes_ && batch_->rep_.size() > batch_->max_bytes_) {
-      batch_->rep_.resize(savepoint_.size);
+    if (batch_->max_bytes_ && batch_->rep_.size() > batch_->max_bytes_) {  // 长度超过阈值
+      batch_->rep_.resize(savepoint_.size);  // 截断了吗?
       WriteBatchInternal::SetCount(batch_, savepoint_.count);
       if (batch_->prot_info_ != nullptr) {
         batch_->prot_info_->entries_.resize(savepoint_.count);
@@ -291,7 +291,7 @@ class LocalSavePoint {
 };
 
 template <typename TimestampSizeFuncType>
-class TimestampUpdater : public WriteBatch::Handler {
+class TimestampUpdater : public WriteBatch::Handler {  // 如何更新
  public:
   explicit TimestampUpdater(WriteBatch::ProtectionInfo* prot_info,
                             TimestampSizeFuncType&& ts_sz_func, const Slice& ts)
@@ -369,11 +369,11 @@ class TimestampUpdater : public WriteBatch::Handler {
     } else if (cf_ts_sz != timestamp_.size()) {
       return Status::InvalidArgument("timestamp size mismatch");
     }
-    UpdateProtectionInformationIfNeeded(buf, timestamp_, is_key);
+    UpdateProtectionInformationIfNeeded(buf, timestamp_, is_key);  //更新protectinfo
 
     char* ptr = const_cast<char*>(buf.data() + buf.size() - cf_ts_sz);
     assert(ptr);
-    memcpy(ptr, timestamp_.data(), timestamp_.size());
+    memcpy(ptr, timestamp_.data(), timestamp_.size());  // 将本地时间放到buf
     return Status::OK();
   }
 
@@ -383,7 +383,7 @@ class TimestampUpdater : public WriteBatch::Handler {
       const size_t ts_sz = ts.size();
       SliceParts old(&buf, 1);
       Slice old_no_ts(buf.data(), buf.size() - ts_sz);
-      std::array<Slice, 2> new_key_cmpts{{old_no_ts, ts}};
+      std::array<Slice, 2> new_key_cmpts{{old_no_ts, ts}};  // 将新的ts放入
       SliceParts new_parts(new_key_cmpts.data(), 2);
       if (is_key) {
         prot_info_->entries_[idx_].UpdateK(old, new_parts);

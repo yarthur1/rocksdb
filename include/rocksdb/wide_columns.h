@@ -20,7 +20,7 @@ class ColumnFamilyHandle;
 
 // Class representing a wide column, which is defined as a pair of column name
 // and column value.
-class WideColumn {
+class WideColumn {  // name + val
  public:
   WideColumn() = default;
 

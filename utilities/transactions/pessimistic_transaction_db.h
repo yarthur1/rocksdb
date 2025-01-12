@@ -193,7 +193,7 @@ class PessimisticTransactionDB : public TransactionDB {
 
   // Use the returned factory to create LockTrackers in transactions.
   const LockTrackerFactory& GetLockTrackerFactory() const {
-    return lock_manager_->GetLockTrackerFactory();
+    return lock_manager_->GetLockTrackerFactory();  // lock track
   }
 
   std::pair<Status, std::shared_ptr<const Snapshot>> CreateTimestampedSnapshot(
@@ -264,7 +264,7 @@ class PessimisticTransactionDB : public TransactionDB {
 
 // A PessimisticTransactionDB that writes the data to the DB after the commit.
 // In this way the DB only contains the committed data.
-class WriteCommittedTxnDB : public PessimisticTransactionDB {
+class WriteCommittedTxnDB : public PessimisticTransactionDB {  // 悲观事务默认是writecommit
  public:
   explicit WriteCommittedTxnDB(DB* db,
                                const TransactionDBOptions& txn_db_options)

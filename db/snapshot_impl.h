@@ -83,7 +83,7 @@ class SnapshotList {
 
   SnapshotImpl* New(SnapshotImpl* s, SequenceNumber seq, uint64_t unix_time,
                     bool is_write_conflict_boundary,
-                    uint64_t ts = std::numeric_limits<uint64_t>::max()) {
+                    uint64_t ts = std::numeric_limits<uint64_t>::max()) {  // 插入到双端链表
     s->number_ = seq;
     s->unix_time_ = unix_time;
     s->timestamp_ = ts;

@@ -253,7 +253,7 @@ class TransactionBaseImpl : public Transaction {
   }
 
   void SetSnapshot() override;
-  void SetSnapshotOnNextOperation(
+  void SetSnapshotOnNextOperation(  // ?
       std::shared_ptr<TransactionNotifier> notifier = nullptr) override;
 
   void ClearSnapshot() override {
@@ -335,7 +335,7 @@ class TransactionBaseImpl : public Transaction {
   // seqno is the earliest seqno this key was involved with this transaction.
   // readonly should be set to true if no data was written for this key
   void TrackKey(uint32_t cfh_id, const std::string& key, SequenceNumber seqno,
-                bool readonly, bool exclusive);
+                bool readonly, bool exclusive);  // ?
 
   // Called when UndoGetForUpdate determines that this key can be unlocked.
   virtual void UnlockGetForUpdate(ColumnFamilyHandle* column_family,
@@ -388,7 +388,7 @@ class TransactionBaseImpl : public Transaction {
     uint64_t num_merges_ = 0;
 
     // Record all locks tracked since the last savepoint
-    std::shared_ptr<LockTracker> new_locks_;
+    std::shared_ptr<LockTracker> new_locks_;  // 当前SavePoint TransactionBaseImpl::TrackKey(
 
     SavePoint(std::shared_ptr<const Snapshot> snapshot, bool snapshot_needed,
               std::shared_ptr<TransactionNotifier> snapshot_notifier,
@@ -409,13 +409,13 @@ class TransactionBaseImpl : public Transaction {
   };
 
   // Records writes pending in this transaction
-  WriteBatchWithIndex write_batch_;
+  WriteBatchWithIndex write_batch_;  // 事务里面用的是WriteBatchWithIndex
 
   // For Pessimistic Transactions this is the set of acquired locks.
   // Optimistic Transactions will keep note the requested locks (not actually
   // locked), and do conflict checking until commit time based on the tracked
   // lock requests.
-  std::unique_ptr<LockTracker> tracked_locks_;
+  std::unique_ptr<LockTracker> tracked_locks_;  // 当前事务
 
   // Stack of the Snapshot saved at each save point. Saved snapshots may be
   // nullptr if there was no snapshot at the time SetSavePoint() was called.
@@ -429,7 +429,7 @@ class TransactionBaseImpl : public Transaction {
 
   // Extra data to be persisted with the commit. Note this is only used when
   // prepare phase is not skipped.
-  WriteBatch commit_time_batch_;
+  WriteBatch commit_time_batch_;   // ?
 
   // If true, future Put/PutEntity/Merge/Delete operations will be indexed in
   // the WriteBatchWithIndex. If false, future Put/PutEntity/Merge/Delete

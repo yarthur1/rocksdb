@@ -43,7 +43,7 @@ struct WriteBatchWithIndex::Rep {
   bool overwrite_key;
   size_t last_entry_offset;
   // The starting offset of the last sub-batch. A sub-batch starts right before
-  // inserting a key that is a duplicate of a key in the last sub-batch. Zero,
+  // inserting a key that is a duplicate of a key in the last sub-batch. Zero,  插入一个相同的key时开启sub-batch
   // the default, means that no duplicate key is detected so far.
   size_t last_sub_batch_offset;
   // Total number of sub-batches in the write batch. Default is 1.
@@ -88,7 +88,7 @@ bool WriteBatchWithIndex::Rep::UpdateExistingEntry(
 
 bool WriteBatchWithIndex::Rep::UpdateExistingEntryWithCfId(
     uint32_t column_family_id, const Slice& key, WriteType type) {
-  if (!overwrite_key) {
+  if (!overwrite_key) {  // 不能重写
     return false;
   }
 
@@ -117,7 +117,7 @@ bool WriteBatchWithIndex::Rep::UpdateExistingEntryWithCfId(
   if (type == kMergeRecord) {
     return false;
   } else {
-    non_const_entry->offset = last_entry_offset;
+    non_const_entry->offset = last_entry_offset;  // 更新为当前offset
     return true;
   }
 }
@@ -141,14 +141,14 @@ void WriteBatchWithIndex::Rep::AddOrUpdateIndex(const Slice& key,
   }
 }
 
-void WriteBatchWithIndex::Rep::AddNewEntry(uint32_t column_family_id) {
+void WriteBatchWithIndex::Rep::AddNewEntry(uint32_t column_family_id) {  // key如何获取
   const std::string& wb_data = write_batch.Data();
   Slice entry_ptr = Slice(wb_data.data() + last_entry_offset,
-                          wb_data.size() - last_entry_offset);
+                          wb_data.size() - last_entry_offset); // 获取entry,以last_entry_offset开头，size可能超过key的大小
   // Extract key
   Slice key;
   bool success =
-      ReadKeyFromWriteBatchEntry(&entry_ptr, &key, column_family_id != 0);
+      ReadKeyFromWriteBatchEntry(&entry_ptr, &key, column_family_id != 0);  // 根据长度提取出key
 #ifdef NDEBUG
   (void)success;
 #endif
@@ -158,13 +158,13 @@ void WriteBatchWithIndex::Rep::AddNewEntry(uint32_t column_family_id) {
   size_t ts_sz = ucmp ? ucmp->timestamp_size() : 0;
 
   if (ts_sz > 0) {
-    key.remove_suffix(ts_sz);
+    key.remove_suffix(ts_sz);  // 时间戳作为后缀
   }
 
   auto* mem = arena.Allocate(sizeof(WriteBatchIndexEntry));
   auto* index_entry =
       new (mem) WriteBatchIndexEntry(last_entry_offset, column_family_id,
-                                     key.data() - wb_data.data(), key.size());
+                                     key.data() - wb_data.data(), key.size());  // 包含key的offset size
   skip_list.Insert(index_entry);
 }
 
@@ -193,7 +193,7 @@ Status WriteBatchWithIndex::Rep::ReBuildIndex() {
     return s;
   }
 
-  size_t offset = WriteBatchInternal::GetFirstOffset(&write_batch);
+  size_t offset = WriteBatchInternal::GetFirstOffset(&write_batch);  // start offset?
 
   Slice input(write_batch.Data());
   input.remove_prefix(offset);
@@ -207,10 +207,10 @@ Status WriteBatchWithIndex::Rep::ReBuildIndex() {
     char tag = 0;
 
     // set offset of current entry for call to AddNewEntry()
-    last_entry_offset = input.data() - write_batch.Data().data();
+    last_entry_offset = input.data() - write_batch.Data().data();  // writebatch中相对的offset
 
     s = ReadRecordFromWriteBatch(&input, &tag, &column_family_id, &key, &value,
-                                 &blob, &xid, &unix_write_time);
+                                 &blob, &xid, &unix_write_time);  // input slice会移动
     if (!s.ok()) {
       break;
     }
@@ -342,10 +342,10 @@ Iterator* WriteBatchWithIndex::NewIteratorWithBase(Iterator* base_iterator) {
 
 Status WriteBatchWithIndex::Put(ColumnFamilyHandle* column_family,
                                 const Slice& key, const Slice& value) {
-  rep->SetLastEntryOffset();
-  auto s = rep->write_batch.Put(column_family, key, value);
+  rep->SetLastEntryOffset();   // 当前size设置成last offset
+  auto s = rep->write_batch.Put(column_family, key, value);  // writebatch写入值
   if (s.ok()) {
-    rep->AddOrUpdateIndex(column_family, key, kPutRecord);
+    rep->AddOrUpdateIndex(column_family, key, kPutRecord);  // 索引修改
   }
   return s;
 }
@@ -500,7 +500,7 @@ Status WriteBatchWithIndex::GetFromBatch(ColumnFamilyHandle* column_family,
 
 Status WriteBatchWithIndex::GetEntityFromBatch(
     ColumnFamilyHandle* column_family, const Slice& key,
-    PinnableWideColumns* columns) {
+    PinnableWideColumns* columns) {  // PinnableWideColumns的结构
   if (!column_family) {
     return Status::InvalidArgument(
         "Cannot call GetEntityFromBatch without a column family handle");
@@ -524,7 +524,7 @@ Status WriteBatchWithIndex::GetFromBatchAndDB(DB* db,
                                               const Slice& key,
                                               std::string* value) {
   assert(value != nullptr);
-  PinnableSlice pinnable_val(value);
+  PinnableSlice pinnable_val(value);  // PinnableSlice的结构
   assert(!pinnable_val.IsPinned());
   auto s = GetFromBatchAndDB(db, read_options, db->DefaultColumnFamily(), key,
                              &pinnable_val);
@@ -623,7 +623,7 @@ void WriteBatchWithIndex::MergeAcrossBatchAndDB(
                             columns, status);
 }
 
-Status WriteBatchWithIndex::GetFromBatchAndDB(
+Status WriteBatchWithIndex::GetFromBatchAndDB(   // 读数据
     DB* db, const ReadOptions& read_options, ColumnFamilyHandle* column_family,
     const Slice& key, PinnableSlice* pinnable_val, ReadCallback* callback) {
   assert(db);
@@ -650,7 +650,7 @@ Status WriteBatchWithIndex::GetFromBatchAndDB(
   auto result = WriteBatchWithIndexInternal::GetFromBatch(
       this, column_family, key, &merge_context, pinnable_val->GetSelf(), &s);
 
-  if (result == WBWIIteratorImpl::kFound) {
+  if (result == WBWIIteratorImpl::kFound) {  // 从batch找到直接返回
     pinnable_val->PinSelf();
     return s;
   }
@@ -1102,12 +1102,12 @@ void WriteBatchWithIndex::MultiGetEntityFromBatchAndDB(
 void WriteBatchWithIndex::SetSavePoint() { rep->write_batch.SetSavePoint(); }
 
 Status WriteBatchWithIndex::RollbackToSavePoint() {
-  Status s = rep->write_batch.RollbackToSavePoint();
+  Status s = rep->write_batch.RollbackToSavePoint();  // 将数据回滚到上一个savepoint
 
   if (s.ok()) {
     rep->sub_batch_cnt = 1;
     rep->last_sub_batch_offset = 0;
-    s = rep->ReBuildIndex();
+    s = rep->ReBuildIndex();   // 重建索引  将数据回滚后提交事务，用的是那个write batch
   }
 
   return s;

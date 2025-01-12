@@ -1517,7 +1517,7 @@ class DBImpl : public DB {
   // batch_cnt is expected to be non-zero in seq_per_batch mode and
   // indicates the number of sub-patches. A sub-patch is a subset of the write
   // batch that does not have duplicate keys.
-  Status WriteImpl(const WriteOptions& options, WriteBatch* updates,
+  Status WriteImpl(const WriteOptions& options, WriteBatch* updates,  // 写流程
                    WriteCallback* callback = nullptr,
                    UserWriteCallback* user_write_cb = nullptr,
                    uint64_t* log_used = nullptr, uint64_t log_ref = 0,
