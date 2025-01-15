@@ -25,7 +25,7 @@ namespace ROCKSDB_NAMESPACE {
 //
 template <typename K, typename V, size_t size = 128>
 class HashMap {
-  std::array<autovector<std::pair<K, V>, 1>, size> table_;
+  std::array<autovector<std::pair<K, V>, 1>, size> table_;  // autovector如何实现
 
  public:
   bool Contains(K key) {

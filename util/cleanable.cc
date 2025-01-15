@@ -48,7 +48,7 @@ Cleanable& Cleanable::operator=(Cleanable&& other) noexcept {
 // TODO(myabandeh): if the list is too long we should maintain a tail pointer
 // and have the entire list (minus the head that has to be inserted separately)
 // merged with the target linked list at once.
-void Cleanable::DelegateCleanupsTo(Cleanable* other) {
+void Cleanable::DelegateCleanupsTo(Cleanable* other) {  // 将func转移到other
   assert(other != nullptr);
   if (cleanup_.function == nullptr) {
     return;
@@ -61,7 +61,7 @@ void Cleanable::DelegateCleanupsTo(Cleanable* other) {
     other->RegisterCleanup(c);
     c = next;
   }
-  cleanup_.function = nullptr;
+  cleanup_.function = nullptr;  // 自身标记为空
   cleanup_.next = nullptr;
 }
 
@@ -70,7 +70,7 @@ void Cleanable::RegisterCleanup(Cleanable::Cleanup* c) {
   if (cleanup_.function == nullptr) {
     cleanup_.function = c->function;
     cleanup_.arg1 = c->arg1;
-    cleanup_.arg2 = c->arg2;
+    cleanup_.arg2 = c->arg2;  // next没有copy
     delete c;
   } else {
     c->next = cleanup_.next;

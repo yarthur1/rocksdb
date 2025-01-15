@@ -77,12 +77,12 @@ Status OptimisticTransaction::Commit() {
 Status OptimisticTransaction::CommitWithSerialValidate() {
   // Set up callback which will call CheckTransactionForConflicts() to
   // check whether this transaction is safe to be committed.
-  OptimisticTransactionCallback callback(this);
+  OptimisticTransactionCallback callback(this);  // 检测冲突?
 
   DBImpl* db_impl = static_cast_with_check<DBImpl>(db_->GetRootDB());
 
   Status s = db_impl->WriteWithCallback(
-      write_options_, GetWriteBatch()->GetWriteBatch(), &callback);
+      write_options_, GetWriteBatch()->GetWriteBatch(), &callback);  // 调用 DBImpl::WriteImpl
 
   if (s.ok()) {
     Clear();
@@ -102,7 +102,7 @@ Status OptimisticTransaction::CommitWithParallelValidate() {
       tracked_locks_->GetColumnFamilyIterator());
   assert(cf_it != nullptr);
   while (cf_it->HasNext()) {
-    ColumnFamilyId cf = cf_it->Next();
+    ColumnFamilyId cf = cf_it->Next();   // 遍历列簇
 
     // To avoid the same key(s) contending across CFs or DBs, seed the
     // hash independently.
@@ -117,13 +117,13 @@ Status OptimisticTransaction::CommitWithParallelValidate() {
       TEST_SYNC_POINT_CALLBACK(
           "OptimisticTransaction::CommitWithParallelValidate::lock_bucket_ptr",
           lock_bucket_ptr);
-      lk_ptrs.insert(lock_bucket_ptr);
+      lk_ptrs.insert(lock_bucket_ptr);  // 获取mutex
     }
   }
   // NOTE: in a single txn, all bucket-locks are taken in ascending order.
   // In this way, txns from different threads all obey this rule so that
   // deadlock can be avoided.
-  for (auto v : lk_ptrs) {
+  for (auto v : lk_ptrs) {  // 根据指针的地址值进行排序
     // WART: if an exception is thrown during a Lock(), previously locked will
     // not be Unlock()ed. But a vector of MutexLock is likely inefficient.
     v->Lock();
@@ -140,7 +140,7 @@ Status OptimisticTransaction::CommitWithParallelValidate() {
     return s;
   }
 
-  s = db_impl->Write(write_options_, GetWriteBatch()->GetWriteBatch());
+  s = db_impl->Write(write_options_, GetWriteBatch()->GetWriteBatch());  // 并发写数据?
   if (s.ok()) {
     Clear();
   }
@@ -178,7 +178,7 @@ Status OptimisticTransaction::TryLock(ColumnFamilyHandle* column_family,
 
   std::string key_str = key.ToString();
 
-  TrackKey(cfh_id, key_str, seq, read_only, exclusive);
+  TrackKey(cfh_id, key_str, seq, read_only, exclusive);  // 只记录不加锁
 
   // Always return OK. Confilct checking will happen at commit time.
   return Status::OK();

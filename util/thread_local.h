@@ -92,9 +92,9 @@ class ThreadLocalPtr {
   class StaticMeta;
 
  private:
-  static StaticMeta* Instance();
+  static StaticMeta* Instance();  // 返回的是一个static变量，全局唯一的
 
-  const uint32_t id_;
+  const uint32_t id_;  // 标识线程内的序号id
 };
 
 }  // namespace ROCKSDB_NAMESPACE

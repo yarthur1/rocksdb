@@ -163,20 +163,20 @@ class PinnableSlice : public Slice, public Cleanable {
     data_ = s.data();
     size_ = s.size();
     if (cleanable != nullptr) {
-      cleanable->DelegateCleanupsTo(this);
+      cleanable->DelegateCleanupsTo(this);  // 将clena注册到自身
     }
     assert(pinned_);
   }
 
   inline void PinSelf(const Slice& slice) {
     assert(!pinned_);
-    buf_->assign(slice.data(), slice.size());
+    buf_->assign(slice.data(), slice.size()); // 将slice存到buf
     data_ = buf_->data();
     size_ = buf_->size();
     assert(!pinned_);
   }
 
-  inline void PinSelf() {
+  inline void PinSelf() {  // buf赋值给slice
     assert(!pinned_);
     data_ = buf_->data();
     size_ = buf_->size();
@@ -196,16 +196,16 @@ class PinnableSlice : public Slice, public Cleanable {
   void remove_prefix(size_t n) {
     assert(n <= size());
     if (pinned_) {
-      data_ += n;
+      data_ += n;  // slice溢出前缀
       size_ -= n;
     } else {
       buf_->erase(0, n);
-      PinSelf();
+      PinSelf();  // buf赋值给slice
     }
   }
 
   void Reset() {
-    Cleanable::Reset();
+    Cleanable::Reset();  // 会执行任务
     pinned_ = false;
     size_ = 0;
   }

@@ -147,7 +147,7 @@ void DBImpl::SetRecoverableStatePreReleaseCallback(
   recoverable_state_pre_release_callback_.reset(callback);
 }
 
-Status DBImpl::Write(const WriteOptions& write_options, WriteBatch* my_batch) {
+Status DBImpl::Write(const WriteOptions& write_options, WriteBatch* my_batch) {  // CommitWithParallel
   Status s;
   if (write_options.protection_bytes_per_key > 0) {
     s = WriteBatchInternal::UpdateProtectionInfo(
@@ -163,7 +163,7 @@ Status DBImpl::Write(const WriteOptions& write_options, WriteBatch* my_batch) {
 
 Status DBImpl::WriteWithCallback(const WriteOptions& write_options,
                                  WriteBatch* my_batch, WriteCallback* callback,
-                                 UserWriteCallback* user_write_cb) {
+                                 UserWriteCallback* user_write_cb) {  // user_write_cb==null
   Status s;
   if (write_options.protection_bytes_per_key > 0) {
     s = WriteBatchInternal::UpdateProtectionInfo(
@@ -464,7 +464,7 @@ Status DBImpl::WriteImpl(const WriteOptions& write_options,
     size_t pre_release_callback_cnt = 0;
     for (auto* writer : write_group) {
       assert(writer);
-      if (writer->CheckCallback(this)) {
+      if (writer->CheckCallback(this)) {  // 乐观事务加锁检测
         valid_batches += writer->batch_cnt;
         if (writer->ShouldWriteToMemtable()) {
           total_count += WriteBatchInternal::Count(writer->batch);

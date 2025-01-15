@@ -552,7 +552,7 @@ ColumnFamilyData::ColumnFamilyData(
            ioptions_.max_write_buffer_size_to_maintain),
       super_version_(nullptr),
       super_version_number_(0),
-      local_sv_(new ThreadLocalPtr(&SuperVersionUnrefHandle)),
+      local_sv_(new ThreadLocalPtr(&SuperVersionUnrefHandle)),  // id确定了
       next_(nullptr),
       prev_(nullptr),
       log_number_(0),
@@ -1271,7 +1271,7 @@ Compaction* ColumnFamilyData::CompactRange(
   return result;
 }
 
-SuperVersion* ColumnFamilyData::GetReferencedSuperVersion(DBImpl* db) {
+SuperVersion* ColumnFamilyData::GetReferencedSuperVersion(DBImpl* db) {  // 获取sv
   SuperVersion* sv = GetThreadLocalSuperVersion(db);
   sv->Ref();
   if (!ReturnThreadLocalSuperVersion(sv)) {
@@ -1296,7 +1296,7 @@ SuperVersion* ColumnFamilyData::GetThreadLocalSuperVersion(DBImpl* db) {
   // have swapped in kSVObsolete. We re-check the value at when returning
   // SuperVersion back to thread local, with an atomic compare and swap.
   // The superversion will need to be released if detected to be stale.
-  void* ptr = local_sv_->Swap(SuperVersion::kSVInUse);
+  void* ptr = local_sv_->Swap(SuperVersion::kSVInUse);  // 创建副本
   // Invariant:
   // (1) Scrape (always) installs kSVObsolete in ThreadLocal storage
   // (2) the Swap above (always) installs kSVInUse, ThreadLocal storage
@@ -1304,7 +1304,7 @@ SuperVersion* ColumnFamilyData::GetThreadLocalSuperVersion(DBImpl* db) {
   // (if no Scrape happens).
   assert(ptr != SuperVersion::kSVInUse);
   SuperVersion* sv = static_cast<SuperVersion*>(ptr);
-  if (sv == SuperVersion::kSVObsolete) {
+  if (sv == SuperVersion::kSVObsolete) {  // 如果过期，加锁获取
     RecordTick(ioptions_.stats, NUMBER_SUPERVERSION_ACQUIRES);
     db->mutex()->Lock();
     sv = super_version_->Ref();
@@ -1318,7 +1318,7 @@ bool ColumnFamilyData::ReturnThreadLocalSuperVersion(SuperVersion* sv) {
   assert(sv != nullptr);
   // Put the SuperVersion back
   void* expected = SuperVersion::kSVInUse;
-  if (local_sv_->CompareAndSwap(static_cast<void*>(sv), expected)) {
+  if (local_sv_->CompareAndSwap(static_cast<void*>(sv), expected)) {  // 设置新值 sv
     // When we see kSVInUse in the ThreadLocal, we are sure ThreadLocal
     // storage has not been altered and no Scrape has happened. The
     // SuperVersion is still current.
@@ -1391,7 +1391,7 @@ void ColumnFamilyData::InstallSuperVersion(
 
 void ColumnFamilyData::ResetThreadLocalSuperVersions() {
   autovector<void*> sv_ptrs;
-  local_sv_->Scrape(&sv_ptrs, SuperVersion::kSVObsolete);
+  local_sv_->Scrape(&sv_ptrs, SuperVersion::kSVObsolete);  // 将所有本地变量标记过期
   for (auto ptr : sv_ptrs) {
     assert(ptr);
     if (ptr == SuperVersion::kSVInUse) {

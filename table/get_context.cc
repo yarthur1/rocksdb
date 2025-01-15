@@ -332,7 +332,7 @@ bool GetContext::SaveValue(const ParsedInternalKey& parsed_key,
 
               if (LIKELY(value_pinner != nullptr)) {
                 // If the backing resources for the value are provided, pin them
-                pinnable_val_->PinSlice(value_to_use, value_pinner);
+                pinnable_val_->PinSlice(value_to_use, value_pinner);  // ??
               } else {
                 TEST_SYNC_POINT_CALLBACK("GetContext::SaveValue::PinSelf",
                                          this);

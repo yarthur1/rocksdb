@@ -19,7 +19,7 @@ namespace ROCKSDB_NAMESPACE {
 struct Entry {
   Entry() : ptr(nullptr) {}
   Entry(const Entry& e) : ptr(e.ptr.load(std::memory_order_relaxed)) {}
-  std::atomic<void*> ptr;
+  std::atomic<void*> ptr;  // 不用atomic可以吗 需要支持cas?
 };
 
 class StaticMeta;
@@ -45,7 +45,7 @@ struct ThreadData {
   std::vector<Entry> entries;
   ThreadData* next;
   ThreadData* prev;
-  ThreadLocalPtr::StaticMeta* inst;
+  ThreadLocalPtr::StaticMeta* inst;  // 记录全局唯一的StaticMeta
 };
 
 class ThreadLocalPtr::StaticMeta {
@@ -132,19 +132,19 @@ class ThreadLocalPtr::StaticMeta {
   // when one ThreadLocalPtr gets destroyed, we need to loop over each
   // thread's version of pointer corresponding to that instance and
   // call UnrefHandler for it.
-  ThreadData head_;
+  ThreadData head_;  // 全局链表
 
-  std::unordered_map<uint32_t, UnrefHandler> handler_map_;
+  std::unordered_map<uint32_t, UnrefHandler> handler_map_;  // 不同线程相同uint32_t id 相同handle
 
   // The private mutex.  Developers should always use Mutex() instead of
   // using this variable directly.
   port::Mutex mutex_;
   // Thread local storage
-  static thread_local ThreadData* tls_;
+  static thread_local ThreadData* tls_;  // thread local
 
   // Used to make thread exit trigger possible if !defined(OS_MACOSX).
   // Otherwise, used to retrieve thread data.
-  pthread_key_t pthread_key_;
+  pthread_key_t pthread_key_;  // key线程共享，值每个线程不同
 };
 
 thread_local ThreadData* ThreadLocalPtr::StaticMeta::tls_ = nullptr;
@@ -261,7 +261,7 @@ ThreadLocalPtr::StaticMeta* ThreadLocalPtr::Instance() {
   // thread_local supports dynamic construction and destruction of
   // non-primitive typed variables.  As a result, we can guarantee the
   // destruction order even when the main thread dies before any child threads.
-  static ThreadLocalPtr::StaticMeta* inst = new ThreadLocalPtr::StaticMeta();
+  static ThreadLocalPtr::StaticMeta* inst = new ThreadLocalPtr::StaticMeta();  // 全局唯一
   return inst;
 }
 
@@ -276,7 +276,7 @@ void ThreadLocalPtr::StaticMeta::OnThreadExit(void* ptr) {
   // scope here in case this OnThreadExit is called after the main thread
   // dies.
   auto* inst = tls->inst;
-  pthread_setspecific(inst->pthread_key_, nullptr);
+  pthread_setspecific(inst->pthread_key_, nullptr);  // 主动置空
 
   MutexLock l(inst->MemberMutex());
   inst->RemoveThreadData(tls);
@@ -287,7 +287,7 @@ void ThreadLocalPtr::StaticMeta::OnThreadExit(void* ptr) {
     if (raw != nullptr) {
       auto unref = inst->GetHandler(id);
       if (unref != nullptr) {
-        unref(raw);
+        unref(raw);  // 每个对象调用unref
       }
     }
     ++id;
@@ -296,7 +296,7 @@ void ThreadLocalPtr::StaticMeta::OnThreadExit(void* ptr) {
   delete tls;
 }
 
-ThreadLocalPtr::StaticMeta::StaticMeta()
+ThreadLocalPtr::StaticMeta::StaticMeta()  // static变量
     : next_instance_id_(0), head_(this), pthread_key_(0) {
   if (pthread_key_create(&pthread_key_, &OnThreadExit) != 0) {
     abort();
@@ -318,7 +318,7 @@ ThreadLocalPtr::StaticMeta::StaticMeta()
   static struct A {
     ~A() {
       if (tls_) {
-        OnThreadExit(tls_);
+        OnThreadExit(tls_);  // 主线程退出时清理
       }
     }
   } a;
@@ -351,7 +351,7 @@ void ThreadLocalPtr::StaticMeta::RemoveThreadData(ThreadData* d) {
 
 ThreadData* ThreadLocalPtr::StaticMeta::GetThreadLocal() {
   if (UNLIKELY(tls_ == nullptr)) {
-    auto* inst = Instance();
+    auto* inst = Instance();  // StaticMeta 全局唯一
     tls_ = new ThreadData(inst);
     {
       // Register it in the global chain, needs to be done before thread exit
@@ -361,7 +361,7 @@ ThreadData* ThreadLocalPtr::StaticMeta::GetThreadLocal() {
     }
     // Even it is not OS_MACOSX, need to register value for pthread_key_ so that
     // its exit handler will be triggered.
-    if (pthread_setspecific(inst->pthread_key_, tls_) != 0) {
+    if (pthread_setspecific(inst->pthread_key_, tls_) != 0) {  // 每个线程的私有数据
       {
         MutexLock l(Mutex());
         inst->RemoveThreadData(tls_);
@@ -414,20 +414,20 @@ bool ThreadLocalPtr::StaticMeta::CompareAndSwap(uint32_t id, void* ptr,
 }
 
 void ThreadLocalPtr::StaticMeta::Scrape(uint32_t id, autovector<void*>* ptrs,
-                                        void* const replacement) {
+                                        void* const replacement) {  // 替换指定id的值
   MutexLock l(Mutex());
   for (ThreadData* t = head_.next; t != &head_; t = t->next) {
     if (id < t->entries.size()) {
       void* ptr =
           t->entries[id].ptr.exchange(replacement, std::memory_order_acquire);
       if (ptr != nullptr) {
-        ptrs->push_back(ptr);
+        ptrs->push_back(ptr);  // 返回原来的值
       }
     }
   }
 }
 
-void ThreadLocalPtr::StaticMeta::Fold(uint32_t id, FoldFunc func, void* res) {
+void ThreadLocalPtr::StaticMeta::Fold(uint32_t id, FoldFunc func, void* res) {  // apply FoldFunc
   MutexLock l(Mutex());
   for (ThreadData* t = head_.next; t != &head_; t = t->next) {
     if (id < t->entries.size()) {
@@ -458,7 +458,7 @@ UnrefHandler ThreadLocalPtr::StaticMeta::GetHandler(uint32_t id) {
 uint32_t ThreadLocalPtr::StaticMeta::GetId() {
   MutexLock l(Mutex());
   if (free_instance_ids_.empty()) {
-    return next_instance_id_++;
+    return next_instance_id_++;  // 全局递增的
   }
 
   uint32_t id = free_instance_ids_.back();
@@ -474,7 +474,7 @@ uint32_t ThreadLocalPtr::StaticMeta::PeekId() const {
   return next_instance_id_;
 }
 
-void ThreadLocalPtr::StaticMeta::ReclaimId(uint32_t id) {
+void ThreadLocalPtr::StaticMeta::ReclaimId(uint32_t id) {  // 将ID unref不使用
   // This id is not used, go through all thread local data and release
   // corresponding value
   MutexLock l(Mutex());
@@ -491,8 +491,8 @@ void ThreadLocalPtr::StaticMeta::ReclaimId(uint32_t id) {
   free_instance_ids_.push_back(id);
 }
 
-ThreadLocalPtr::ThreadLocalPtr(UnrefHandler handler)
-    : id_(Instance()->GetId()) {
+ThreadLocalPtr::ThreadLocalPtr(UnrefHandler handler)  // 每个线程有多个实例
+    : id_(Instance()->GetId()) {  // vector还没resize
   if (handler != nullptr) {
     Instance()->SetHandler(id_, handler);
   }
@@ -504,13 +504,13 @@ void* ThreadLocalPtr::Get() const { return Instance()->Get(id_); }
 
 void ThreadLocalPtr::Reset(void* ptr) { Instance()->Reset(id_, ptr); }
 
-void* ThreadLocalPtr::Swap(void* ptr) { return Instance()->Swap(id_, ptr); }
+void* ThreadLocalPtr::Swap(void* ptr) { return Instance()->Swap(id_, ptr); }  // 每个线程调用会创建thread local副本
 
 bool ThreadLocalPtr::CompareAndSwap(void* ptr, void*& expected) {
   return Instance()->CompareAndSwap(id_, ptr, expected);
 }
 
-void ThreadLocalPtr::Scrape(autovector<void*>* ptrs, void* const replacement) {
+void ThreadLocalPtr::Scrape(autovector<void*>* ptrs, void* const replacement) {  // 通知所有线程副本 ColumnFamilyData::ResetThreadLocalSuperVersions
   Instance()->Scrape(id_, ptrs, replacement);
 }
 
