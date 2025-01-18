@@ -23,7 +23,7 @@ namespace ROCKSDB_NAMESPACE {
 //
 // This implementation uses autovector as hash chains insteads.
 //
-template <typename K, typename V, size_t size = 128>
+template <typename K, typename V, size_t size = 128>  // 无需维护迭代器有效
 class HashMap {
   std::array<autovector<std::pair<K, V>, 1>, size> table_;  // autovector如何实现
 
@@ -51,7 +51,7 @@ class HashMap {
       if (it != last) {
         *it = *last;
       }
-      bucket.pop_back();
+      bucket.pop_back();  // 只删除一个key
     }
   }
 

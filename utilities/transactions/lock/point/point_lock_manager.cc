@@ -488,9 +488,9 @@ Status PointLockManager::AcquireLocked(LockMap* lock_map, LockMapStripe* stripe,
 
     if (lock_info.exclusive || txn_lock_info.exclusive) {  // 写锁
       if (lock_info.txn_ids.size() == 1 &&
-          lock_info.txn_ids[0] == txn_lock_info.txn_ids[0]) {  // 已经获取lock
+          lock_info.txn_ids[0] == txn_lock_info.txn_ids[0]) {  // 本身已经获取lock
         // The list contains one txn and we're it, so just take it.
-        lock_info.exclusive = txn_lock_info.exclusive;
+        lock_info.exclusive = txn_lock_info.exclusive;  // 有可能将写锁变成读锁
         lock_info.expiration_time = txn_lock_info.expiration_time;  // 更新stripe中的信息
       } else {
         // Check if it's expired. Skips over txn_lock_info.txn_ids[0] in case

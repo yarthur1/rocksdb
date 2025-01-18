@@ -1142,7 +1142,7 @@ Status PessimisticTransaction::TryLock(ColumnFamilyHandle* column_family,
       // Failed to validate key
       // Unlock key we just locked
       if (lock_upgrade) {
-        s = txn_db_impl_->TryLock(this, cfh_id, key_str, false /* exclusive */);  // 前面修改成了写锁，验证失败现在需要还原成读锁，会阻塞直到写锁超时后才会加读锁,如果没有超时一直阻塞?
+        s = txn_db_impl_->TryLock(this, cfh_id, key_str, false /* exclusive */);  // 前面修改成了写锁，验证失败现在需要还原成读锁，同一个事务写锁变读锁，不会阻塞
         assert(s.ok());
       } else if (!previously_locked) {
         txn_db_impl_->UnLock(this, cfh_id, key.ToString());  // 需要还原成未加锁

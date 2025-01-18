@@ -66,7 +66,7 @@ uint8_t WriteThread::AwaitState(Writer* w, uint8_t goal_mask,
   uint8_t state = 0;
 
   // 1. Busy loop using "pause" for 1 micro sec
-  // 2. Else SOMETIMES busy loop using "yield" for 100 micro sec (default)
+  // 2. Else SOMETIMES busy loop using "yield" for 100 micro sec (default)  多数请求在这个阶段
   // 3. Else blocking wait
 
   // On a modern Xeon each loop takes about 7 nanoseconds (most of which
@@ -157,7 +157,7 @@ uint8_t WriteThread::AwaitState(Writer* w, uint8_t goal_mask,
       auto iter_begin = spin_begin;
       while ((iter_begin - spin_begin) <=
              std::chrono::microseconds(max_yield_usec_)) {
-        std::this_thread::yield();  //主动让出CPU
+        std::this_thread::yield();  //主动让出CPU 如果当前没有其他需要运行的任务，不会上下文切换
 
         state = w->state.load(std::memory_order_acquire);
         if ((state & goal_mask) != 0) {
