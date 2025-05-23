@@ -154,7 +154,7 @@ Status TransactionUtil::CheckKey(DBImpl* db_impl, SuperVersion* sv,
 
 Status TransactionUtil::CheckKeysForConflicts(DBImpl* db_impl,
                                               const LockTracker& tracker,
-                                              bool cache_only) {
+                                              bool cache_only) {  // cache_only
   Status result;
 
   std::unique_ptr<LockTracker::ColumnFamilyIterator> cf_it(
@@ -181,7 +181,7 @@ Status TransactionUtil::CheckKeysForConflicts(DBImpl* db_impl,
     while (key_it->HasNext()) {
       const std::string& key = key_it->Next();
       PointLockStatus status = tracker.GetPointLockStatus(cf, key);
-      const SequenceNumber key_seq = status.seq;
+      const SequenceNumber key_seq = status.seq;  // 获取记录的seq
 
       // TODO: support timestamp-based conflict checking.
       // CheckKeysForConflicts() is currently used only by optimistic
